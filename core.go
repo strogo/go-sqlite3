@@ -182,6 +182,40 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 
 	return;
 }
+func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
+	if !self.result {
+		error = &Error{0, 0, "No results to fetch!"};
+		return;
+	}
+
+	nColumns := int(C.wsq_column_count(unsafe.Pointer(self.handle)));
+	if nColumns <= 0 {
+		error = &Error{0, 0, "No columns!"};
+		return;
+	}
+
+	data = make(map[string]interface{}, nColumns);
+	for i := 0; i < nColumns; i++ {
+		text := C.wsq_column_text(unsafe.Pointer(self.handle), C.int(i));
+		name := C.wsq_column_name(unsafe.Pointer(self.handle), C.int(i));
+		data[C.GoString(name)] = C.GoString(text);
+	}
+
+	rc := C.wsq_step(unsafe.Pointer(self.handle));
+	switch rc {
+		case sqliteDone:
+			self.result = false;
+			// TODO: finalize
+		case sqliteRow:
+			self.result = true;
+		default:
+			error = self.connection.error();
+			// TODO: finalize
+			return;
+	}
+
+	return;
+}
 
 func (self *Cursor) Close() (error os.Error) {
 	if self.handle != nil {

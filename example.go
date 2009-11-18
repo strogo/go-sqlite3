@@ -30,16 +30,25 @@ func main() {
 
 	fmt.Printf("cursor: %s\n", cc);
 
-	for {
+//	for {
 		fmt.Printf("About to fetch one row\n");
 		d, e := cc.FetchOne();
 		if e != nil {
 			fmt.Printf("error: %s\n", e.String());
-			break;
+//			break;
 		}
 		fmt.Printf("cursor: %s\n", cc);
 		fmt.Printf("data: %s\n", d);
-	}
+//	}
+
+		fmt.Printf("About to fetch another row\n");
+		f, e := cc.FetchRow();
+		if e != nil {
+			fmt.Printf("error: %s\n", e.String());
+//			break;
+		}
+		fmt.Printf("cursor: %s\n", cc);
+		fmt.Printf("data: %s\n", f);
 
 
 	fmt.Printf("About to close cursor\n");
