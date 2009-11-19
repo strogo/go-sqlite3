@@ -17,6 +17,19 @@ import "os"
 */
 
 /*
+	Each database interface must provide a Version() function to
+	allow careful clients to configure themselves accordingly.
+	The signature of Version() must be as follows:
+*/
+
+type VersionSignature func () (map[string]string, os.Error)
+
+/*
+	There are a number of well-known keys such as "version",
+	"client", "server", and "protocol". Database interfaces
+	should return the most appropriate of these, together
+	with any interface specific information they want. TODO
+
 	Each database interface must provide an Open() function. The
 	Open() function is used to establish a connection to a database
 	system. The signature of Open() must be as follows:
