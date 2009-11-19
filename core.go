@@ -17,6 +17,7 @@ import "unsafe"
 
 import "fmt"
 import "os"
+import "strconv"
 
 /* these are not exported yet since I am not sure they are needed */
 const (
@@ -63,6 +64,29 @@ type Cursor struct {
 	connection *Connection;
 	/* the last query yielded results */
 	result bool;
+}
+
+func Version() (data map[string]string, error os.Error)
+{
+	data = make(map[string]string);
+
+	cp := C.wsq_libversion();
+	if (cp == nil) {
+		error = &InterfaceError{"Version: couldn't get library version!"};
+		return;
+	}
+	data["version"] = C.GoString(cp);
+	// TODO: fake client and server keys?
+
+	cp = C.wsq_sourceid();
+	if (cp != nil) {
+		data["sqlite3.sourceid"] = C.GoString(cp);
+	}
+
+	i := C.wsq_libversion_number();
+	data["sqlite3.versionnumber"] = strconv.Itob(int(i), 10);
+
+	return;
 }
 
 type Any interface{};

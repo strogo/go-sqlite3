@@ -4,6 +4,14 @@ import "sqlite3"
 import "fmt"
 
 func main() {
+	version, e := sqlite3.Version();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	for k, v := range version {
+		fmt.Printf("version[%s] == %s\n", k, v);
+	}
+
 	info := sqlite3.ConnectionInfo{"name": "test.db"};
 
 	fmt.Printf("About to connect\n");
