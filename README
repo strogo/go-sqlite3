@@ -4,5 +4,6 @@ Work in progress. Two goals:
   2. Design a generic database API for Go that
      supports multiple RDBMSs.
 
-So far only the first has been (partially!)
-accomplished. Stay tuned.
+Both of these are partially accomplished. See
+core.go and error.go for the former, dbapi.go
+for the latter.
