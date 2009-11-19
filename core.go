@@ -97,9 +97,9 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error) {
 
 func (self *Connection) error() (error os.Error) {
 	e := new(Error);
-	e.basic = int(C.wsq_errcode(unsafe.Pointer(self.handle)));
-	e.extended = int(C.wsq_extended_errcode(unsafe.Pointer(self.handle)));
-	e.message = C.GoString(C.wsq_errmsg(unsafe.Pointer(self.handle)));
+	e.basic = int(C.wsq_errcode(self.handle));
+	e.extended = int(C.wsq_extended_errcode(self.handle));
+	e.message = C.GoString(C.wsq_errmsg(self.handle));
 	return e;
 }
 
@@ -110,7 +110,7 @@ func (self *Connection) Cursor() (cursor *Cursor, error os.Error) {
 }
 
 func (self *Connection) Close() (error os.Error) {
-	rc := C.wsq_close(unsafe.Pointer(self.handle));
+	rc := C.wsq_close(self.handle);
 	if rc != 0 {
 		error = self.error();
 	}
@@ -122,7 +122,7 @@ func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 
 	q := C.CString(query);
 
-	rc := C.wsq_prepare(unsafe.Pointer(self.connection.handle), q, -1, &self.handle, nil);
+	rc := C.wsq_prepare(self.connection.handle, q, -1, &self.handle, nil);
 	if rc != sqliteOk {
 		error = self.connection.error();
 		if self.handle != nil {
@@ -131,7 +131,7 @@ func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 		return;
 	}
 
-	rc = C.wsq_step(unsafe.Pointer(self.handle));
+	rc = C.wsq_step(self.handle);
 	switch rc {
 		case sqliteDone:
 			self.result = false;
@@ -155,7 +155,7 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 		return;
 	}
 
-	nColumns := int(C.wsq_column_count(unsafe.Pointer(self.handle)));
+	nColumns := int(C.wsq_column_count(self.handle));
 	if nColumns <= 0 {
 		error = &Error{0, 0, "No columns!"};
 		return;
@@ -163,11 +163,11 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 
 	data = make([]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(unsafe.Pointer(self.handle), C.int(i));
+		text := C.wsq_column_text(self.handle, C.int(i));
 		data[i] = C.GoString(text);
 	}
 
-	rc := C.wsq_step(unsafe.Pointer(self.handle));
+	rc := C.wsq_step(self.handle);
 	switch rc {
 		case sqliteDone:
 			self.result = false;
@@ -188,7 +188,7 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 		return;
 	}
 
-	nColumns := int(C.wsq_column_count(unsafe.Pointer(self.handle)));
+	nColumns := int(C.wsq_column_count(self.handle));
 	if nColumns <= 0 {
 		error = &Error{0, 0, "No columns!"};
 		return;
@@ -196,12 +196,12 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	data = make(map[string]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(unsafe.Pointer(self.handle), C.int(i));
-		name := C.wsq_column_name(unsafe.Pointer(self.handle), C.int(i));
+		text := C.wsq_column_text(self.handle, C.int(i));
+		name := C.wsq_column_name(self.handle, C.int(i));
 		data[C.GoString(name)] = C.GoString(text);
 	}
 
-	rc := C.wsq_step(unsafe.Pointer(self.handle));
+	rc := C.wsq_step(self.handle);
 	switch rc {
 		case sqliteDone:
 			self.result = false;
@@ -219,7 +219,7 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 func (self *Cursor) Close() (error os.Error) {
 	if self.handle != nil {
-		rc := C.wsq_finalize(unsafe.Pointer(self.handle));
+		rc := C.wsq_finalize(self.handle);
 		if rc != sqliteOk {
 			error = self.connection.error();
 		}
