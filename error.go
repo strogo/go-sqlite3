@@ -1,32 +1,50 @@
 /*
 	THIS IS NOT DONE AT ALL! USE AT YOUR OWN RISK!
 */
-
 package sqlite3
 
 /*
-	SQLite has basic and extended error codes
-	in addition to textual messages.
+	Error in the database interface itself, *not*
+	the database system we talk to.
 */
-type Error struct {
-	basic int;
-	extended int;
+type InterfaceError struct {
 	message string;
 }
 
 /*
-	Textual description of an error. Makes us
-	compatible with the os.Error interface.
+	Textual description of the error.
+	Implements os.Error interface.
 */
-func (self *Error) String() string {
+func (self *InterfaceError) String() string {
 	return self.message;
 }
+
+/*
+	Error in the database system we talk to.
+	SQLite has basic and extended error codes
+	in addition to textual messages.
+*/
+type DatabaseError struct {
+	*InterfaceError;
+	basic int;
+	extended int;
+}
+
+/*
+	Textual description of the error.
+	Implements os.Error interface.
+*/
+/*
+func (self *DatabaseError) String() string {
+	return self.message;
+}
+*/
 
 /*
 	Basic SQLite error code. These are plain
 	integers.
 */
-func (self *Error) Basic() int {
+func (self *DatabaseError) Basic() int {
 	return self.basic;
 }
 
@@ -35,6 +53,6 @@ func (self *Error) Basic() int {
 	together from various bits and pieces on top
 	of basic error codes.
 */
-func (self *Error) Extended() int {
+func (self *DatabaseError) Extended() int {
 	return self.extended;
 }

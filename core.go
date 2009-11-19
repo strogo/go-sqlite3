@@ -67,7 +67,7 @@ type ConnectionInfo map[string] Any;
 func Open(info ConnectionInfo) (conn *Connection, error os.Error) {
 	name, ok := info["name"];
 	if !ok {
-		error = &Error{0,0,"No name in connection info."};
+		error = &InterfaceError{"Open: No \"name\" in arguments map."};
 		return;
 	}
 	flags, ok := info["sqlite.flags"];
@@ -101,7 +101,7 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error) {
 }
 
 func (self *Connection) error() (error os.Error) {
-	e := new(Error);
+	e := new(DatabaseError);
 	e.basic = int(C.wsq_errcode(self.handle));
 	e.extended = int(C.wsq_extended_errcode(self.handle));
 	e.message = C.GoString(C.wsq_errmsg(self.handle));
@@ -156,13 +156,13 @@ func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 
 func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 	if !self.result {
-		error = &Error{0, 0, "No results to fetch!"};
+		error = &InterfaceError{"FetchOne: No results to fetch!"};
 		return;
 	}
 
 	nColumns := int(C.wsq_column_count(self.handle));
 	if nColumns <= 0 {
-		error = &Error{0, 0, "No columns!"};
+		error = &InterfaceError{"FetchOne: No columns in result!"};
 		return;
 	}
 
@@ -189,13 +189,13 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 }
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
-		error = &Error{0, 0, "No results to fetch!"};
+		error = &InterfaceError{"FetchRow: No results to fetch!"};
 		return;
 	}
 
 	nColumns := int(C.wsq_column_count(self.handle));
 	if nColumns <= 0 {
-		error = &Error{0, 0, "No columns!"};
+		error = &InterfaceError{"FetchRow: No columns in result!"};
 		return;
 	}
 
