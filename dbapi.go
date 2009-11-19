@@ -34,6 +34,9 @@ type Any interface {}
 type Arguments map[string] Any
 
 /*
+	(TODO: use map[string]string instead? may be friendlier if we
+	are sure we never need to pass anything complicated)
+
 	Client applications have to create suitable map and pass it
 	to Open(). Each entry consists of a string key and a generic
 	value. There are a number of well-known keys that apply to a
@@ -75,15 +78,43 @@ type Arguments map[string] Any
 
 type Connection interface {
 	Prepare(query string) (Statement, os.Error);
-	Execute(statement Statement, parameters ...) (*Cursor, os.Error);
-	Changes() (int, os.Error);
+	Execute(statement Statement, parameters ...) (Cursor, os.Error);
 	Close() os.Error
 }
+
+/*
+	Connections are used to prepare and execute queries. Compiling
+	queries once and then executing them repeatedly with different
+	parameter bindings allows performance gains for some database
+	interfaces. If a query produces results, Execute() returns a
+	Cursor; if there are no results, it returns nil. Once we are
+	done with a database connection, Close() should be called to
+	free up any leftover resources; after a connection has been
+	closed, no further operations are allowed on the connection.
+*/
+
+type InformativeConnection interface {
+	Connection;
+	Changes() (int, os.Error);
+}
+
+/*
+	InformativeConnections supply useful but optional information.
+	If a query modified the database, Changes() returns the number
+	of changes that took place. Note that the database interface
+	has to explain what exactly constitutes a change for a given
+	database system and query.
+*/
 
 type FancyConnection interface {
 	Connection;
 	ExecuteDirectly(query string, parameters ...) (*Cursor, os.Error)
 }
+
+/*
+	FancyConnections support additional convenience operations.
+	ExecuteDirectly() is a wrapper around Prepare() and Execute().
+*/
 
 type TransactionalConnection interface {
 	Connection;
@@ -91,21 +122,15 @@ type TransactionalConnection interface {
 	Rollback() os.Error
 }
 
+/*
+	TODO
+*/
+
 type Statement interface {
+	/* TODO: include parameter binding API? or subsume in Execute()? */
 }
 
 /*
-	TODO
-	Connections are use to execute queries. If a query has results
-	that should be processed, Execute() returns a Cursor, otherwise
-	it returns nil. If a query has no results but somehow affected
-	the database, Changes() returns the number of changes. Note that
-	the database interface has to explain what exactly constitutes
-	a change for a given database system and query. Close() should
-	be called if we are done communicating with the database system;
-	after a connection has been closed, none of the other operations
-	are allowed anymore.
-
 	Queries that produced results return a Cursor to allow clients
 	to iterate through the results (there are several variations of
 	this, but Cursor is the most basic one):
