@@ -19,38 +19,6 @@ import "fmt"
 import "os"
 import "strconv"
 
-/* these are not exported yet since I am not sure they are needed */
-const (
-	sqliteOk = iota; /* Successful result */
-	sqliteError; /* SQL error or missing database */
-	sqliteInternal; /* Internal logic error in SQLite */
-	sqlitePerm; /* Access permission denied */
-	sqliteAbort; /* Callback routine requested an abort */
-	sqliteBusy; /* The database file is locked */
-	sqliteLocked; /* A table in the database is locked */
-	sqliteNomem; /* A malloc() failed */
-	sqliteReadonly; /* Attempt to write a readonly database */
-	sqliteInterrupt; /* Operation terminated by sqlite3_interrupt()*/
-	sqliteIoerr; /* Some kind of disk I/O error occurred */
-	sqliteCorrupt; /* The database disk image is malformed */
-	sqlite_Notfound; /* NOT USED. Table or record not found */
-	sqliteFull; /* Insertion failed because database is full */
-	sqliteCantopen; /* Unable to open the database file */
-	sqliteProtocol; /* NOT USED. Database lock protocol error */
-	sqliteEmpty; /* Database is empty */
-	sqliteSchema; /* The database schema changed */
-	sqliteToobig; /* String or BLOB exceeds size limit */
-	sqliteConstraint; /* Abort due to constraint violation */
-	sqliteMismatch; /* Data type mismatch */
-	sqliteMisuse; /* Library used incorrectly */
-	sqliteNolfs; /* Uses OS features not supported on host */
-	sqliteAuth; /* Authorization denied */
-	sqliteFormat; /* Auxiliary database format error */
-	sqliteRange; /* 2nd parameter to sqlite3_bind out of range */
-	sqliteNotadb; /* File opened that is not a database file */
-	sqliteRow = 100; /* sqlite3_step() has another row ready */
-	sqliteDone = 101;  /* sqlite3_step() has finished executing */
-)
 
 /*
 	These constants can be or'd together and passed as the
@@ -149,6 +117,7 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 	return;
 }
 
+/* TODO: use URIs instead? http://golang.org/pkg/http/#URL */
 func Open(info ConnectionInfo) (conn *Connection, error os.Error)
 {
 	name, flags, vfs, error := parseConnInfo(info);
@@ -158,7 +127,7 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error)
 
 	conn = new(Connection);
 
-	rc := sqliteOk;
+	rc := StatusOk;
 	p := C.CString(name);
 
 	if vfs != nil {
@@ -171,12 +140,12 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error)
 	}
 
 	C.free(unsafe.Pointer(p));
-	if rc != sqliteOk {
+	if rc != StatusOk {
 		error = conn.error();
 	}
 	else {
 		rc := C.wsq_busy_timeout(conn.handle, defaultTimeoutMilliseconds);
-		if rc != sqliteOk {
+		if rc != StatusOk {
 			error = conn.error();
 		}
 	}
@@ -200,7 +169,7 @@ func (self *Connection) Cursor() (cursor *Cursor, error os.Error) {
 
 func (self *Connection) Close() (error os.Error) {
 	rc := C.wsq_close(self.handle);
-	if rc != sqliteOk {
+	if rc != StatusOk {
 		error = self.error();
 	}
 	return;
@@ -212,7 +181,7 @@ func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 	q := C.CString(query);
 
 	rc := C.wsq_prepare(self.connection.handle, q, -1, &self.handle, nil);
-	if rc != sqliteOk {
+	if rc != StatusOk {
 		error = self.connection.error();
 		if self.handle != nil {
 			// TODO: finalize
@@ -222,10 +191,10 @@ func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 
 	rc = C.wsq_step(self.handle);
 	switch rc {
-		case sqliteDone:
+		case StatusDone:
 			self.result = false;
 			// TODO: finalize
-		case sqliteRow:
+		case StatusRow:
 			self.result = true;
 			// TODO: obtain results somehow? or later call?
 		default:
@@ -258,10 +227,10 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 
 	rc := C.wsq_step(self.handle);
 	switch rc {
-		case sqliteDone:
+		case StatusDone:
 			self.result = false;
 			// TODO: finalize
-		case sqliteRow:
+		case StatusRow:
 			self.result = true;
 		default:
 			error = self.connection.error();
@@ -292,10 +261,10 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	rc := C.wsq_step(self.handle);
 	switch rc {
-		case sqliteDone:
+		case StatusDone:
 			self.result = false;
 			// TODO: finalize
-		case sqliteRow:
+		case StatusRow:
 			self.result = true;
 		default:
 			error = self.connection.error();
@@ -309,7 +278,7 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 func (self *Cursor) Close() (error os.Error) {
 	if self.handle != nil {
 		rc := C.wsq_finalize(self.handle);
-		if rc != sqliteOk {
+		if rc != StatusOk {
 			error = self.connection.error();
 		}
 	}
