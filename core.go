@@ -1,5 +1,9 @@
 /*
 	THIS IS NOT DONE AT ALL! USE AT YOUR OWN RISK!
+
+	- it would be nice if cgo could grok several .go files,
+	so far it can't; so all the C interface stuff has to be
+	in one file; bummer that
 */
 
 package sqlite3
@@ -14,6 +18,7 @@ import "unsafe"
 import "fmt"
 import "os"
 
+/* these are not exported yet since I am not sure they are needed */
 const (
 	sqliteOk = iota; /* Successful result */
 	sqliteError; /* SQL error or missing database */
