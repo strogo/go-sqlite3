@@ -60,4 +60,7 @@ const char *wsq_sourceid(void);
 /* really sqlite3_libversion_number */
 int wsq_libversion_number(void);
 
+/* really sqlite3_busy_timeout */
+int wsq_busy_timeout(wsq_db database, int milliseconds);
+
 #endif /* !_WRAP_SQLITE3_H_ */
