@@ -52,6 +52,33 @@ const (
 	sqliteDone = 101;  /* sqlite3_step() has finished executing */
 )
 
+/*
+	These constants can be or'd together and passed as the
+	"sqlite3.flags" argument to Open(). Some of them only
+	apply if "sqlite3.vfs" is also passed. See the SQLite
+	documentation for details.
+*/
+const (
+	OpenReadOnly = 0x00000001;
+	OpenReadWrite = 0x00000002;
+	OpenCreate = 0x00000004;
+	OpenDeleteOnClose = 0x00000008;  /* VFS only */
+	OpenExclusive = 0x00000010;  /* VFS only */
+	OpenMainDb = 0x00000100;  /* VFS only */
+	OpenTempDb = 0x00000200;  /* VFS only */
+	OpenTransientDb = 0x00000400;  /* VFS only */
+	OpenMainJournal = 0x00000800;  /* VFS only */
+	OpenTempJournal = 0x00001000;  /* VFS only */
+	OpenSubJournal = 0x00002000;  /* VFS only */
+	OpenMasterJournal = 0x00004000;  /* VFS only */
+	OpenNoMutex = 0x00008000;
+	OpenFullMutex = 0x00010000;
+	OpenSharedCache = 0x00020000;
+	OpenPrivateCache = 0x00040000;
+)
+
+const defaultTimeoutMilliseconds = 16*1000;
+
 type Connection struct {
 	/* pointer to struct sqlite3 */
 	handle C.wsq_db;
@@ -146,6 +173,12 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error)
 	C.free(unsafe.Pointer(p));
 	if rc != sqliteOk {
 		error = conn.error();
+	}
+	else {
+		rc := C.wsq_busy_timeout(conn.handle, defaultTimeoutMilliseconds);
+		if rc != sqliteOk {
+			error = conn.error();
+		}
 	}
 
 	return;
