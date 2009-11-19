@@ -60,3 +60,21 @@ const char *wsq_errmsg(wsq_db database)
 {
 	return sqlite3_errmsg(database);
 }
+
+/* really sqlite3_libversion */
+const char *wsq_libversion(void)
+{
+	return sqlite3_libversion();
+}
+
+/* really sqlite3_sourceid */
+const char *wsq_sourceid(void)
+{
+	return sqlite3_sourceid();
+}
+
+/* really sqlite3_libversion_number */
+int wsq_libversion_number(void)
+{
+	return sqlite3_libversion_number();
+}

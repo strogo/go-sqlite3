@@ -51,4 +51,13 @@ int wsq_extended_errcode(wsq_db database);
 /* really  sqlite3_errmsg */
 const char *wsq_errmsg(wsq_db database);
 
+/* really sqlite3_libversion */
+const char *wsq_libversion(void);
+
+/* really sqlite3_sourceid */
+const char *wsq_sourceid(void);
+
+/* really sqlite3_libversion_number */
+int wsq_libversion_number(void);
+
 #endif /* !_WRAP_SQLITE3_H_ */
