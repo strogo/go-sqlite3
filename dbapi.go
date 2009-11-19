@@ -69,16 +69,33 @@ type Arguments map[string] Any
 	sqlite3 interface supports the key "sqlite3.vfs".
 
 	A successful call to Open() results in a Connection to the
-	database system:
+	database system (there are several variations of this, but
+	Connection is the most basic one):
 */
 
 type Connection interface {
-	Execute(query string, parameters ...) (cursor Cursor, error os.Error);
+	Prepare(query string) (Statement, os.Error);
+	Execute(statement Statement, parameters ...) (*Cursor, os.Error);
 	Changes() (int, os.Error);
 	Close() os.Error
 }
 
+type FancyConnection interface {
+	Connection;
+	ExecuteDirectly(query string, parameters ...) (*Cursor, os.Error)
+}
+
+type TransactionalConnection interface {
+	Connection;
+	Commit() os.Error;
+	Rollback() os.Error
+}
+
+type Statement interface {
+}
+
 /*
+	TODO
 	Connections are use to execute queries. If a query has results
 	that should be processed, Execute() returns a Cursor, otherwise
 	it returns nil. If a query has no results but somehow affected
@@ -90,21 +107,32 @@ type Connection interface {
 	are allowed anymore.
 
 	Queries that produced results return a Cursor to allow clients
-	to iterate through the results:
+	to iterate through the results (there are several variations of
+	this, but Cursor is the most basic one):
 */
 
 type Cursor interface {
-	Description() (map[string]string, os.Error);
 	FetchOne() ([]interface {}, os.Error);
 	FetchMany(count int) ([][]interface {}, os.Error);
 	FetchAll() ([][]interface {}, os.Error);
-        FetchRow() (data map[string]interface{}, error os.Error);
-        FetchManyRows(count int) (data []map[string]interface{}, error os.Error);
-        FetchAllRows() (data []map[string]interface{}, error os.Error);
 	Close() os.Error
+}
+
+type InformativeCursor interface {
+	Cursor;
+	Description() (map[string]string, os.Error);
+	Results() int;
+};
+
+type PythonicCursor interface {
+	Cursor;
+        FetchDict() (data map[string]interface{}, error os.Error);
+        FetchManyDicts(count int) (data []map[string]interface{}, error os.Error);
+        FetchAllDicts() (data []map[string]interface{}, error os.Error)
 };
 
 /*
+	TODO
 	Each result consists of a number of fields (in relational
 	terminology, a result is a row and the fields are entries
 	in each column).
@@ -117,22 +145,4 @@ type Cursor interface {
 	and match, but if you want to know how many results you got
 	in total you need to keep a running tally yourself.
 	TODO
-*/
-
-/*
-	Alternative spec.
-
-type Connection interface {
-	Prepare(query string, parameters ...) (statement *Statement, os.Error);
-	Execute(statement *Statement) (cursor *Cursor, os.Error);
-	ExecuteDirectly(query string, parameters ...) (cursor *Cursor, os.Error);
-	Close() os.Error;
-};
-
-type Cursor interface {
-	FetchOne();
-	FetchMany();
-	FetchAll();
-	Close() os.Error;
-};
 */
