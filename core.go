@@ -52,47 +52,74 @@ const (
 )
 
 type Connection struct {
+	/* pointer to struct sqlite3 */
 	handle C.wsq_db;
 }
 
 type Cursor struct {
+	/* pointer to struct sqlite3_stmt */
 	handle C.wsq_st;
+	/* connection we were created on */
 	connection *Connection;
+	/* the last query yielded results */
 	result bool;
 }
 
 type Any interface{};
 type ConnectionInfo map[string] Any;
 
-func Open(info ConnectionInfo) (conn *Connection, error os.Error) {
-	name, ok := info["name"];
+func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, error os.Error)
+{
+	ok := false;
+	any := Any(nil);
+
+	any, ok = info["name"];
 	if !ok {
 		error = &InterfaceError{"Open: No \"name\" in arguments map."};
 		return;
 	}
-	flags, ok := info["sqlite.flags"];
+	name, ok = any.(string);
 	if !ok {
-		flags = Any(0);
+		error = &InterfaceError{"Open: \"name\" argument not a string."};
+		return;
 	}
-	vfs, _ := info["sqlite.vfs"];
+
+	any, ok = info["sqlite.flags"];
+	if ok {
+		flags = any.(int);
+	}
+
+	any, ok = info["sqlite.vfs"];
+	if ok {
+		vfs = new(string);
+		*vfs = any.(string);
+	}
+
+	return;
+}
+
+func Open(info ConnectionInfo) (conn *Connection, error os.Error)
+{
+	name, flags, vfs, error := parseConnInfo(info);
+	if error != nil {
+		return;
+	}
 
 	conn = new(Connection);
 
-	p := C.CString(name.(string));
-
 	rc := sqliteOk;
+	p := C.CString(name);
 
 	if vfs != nil {
-		q := C.CString(vfs.(string));
-		rc = int(C.wsq_open(p, &conn.handle, C.int(flags.(int)), q));
+		q := C.CString(*vfs);
+		rc = int(C.wsq_open(p, &conn.handle, C.int(flags), q));
 		C.free(unsafe.Pointer(q));
 	}
 	else {
-		rc = int(C.wsq_open(p, &conn.handle, C.int(flags.(int)), nil));
+		rc = int(C.wsq_open(p, &conn.handle, C.int(flags), nil));
 	}
 
 	C.free(unsafe.Pointer(p));
-
 	if rc != sqliteOk {
 		error = conn.error();
 	}
@@ -116,7 +143,7 @@ func (self *Connection) Cursor() (cursor *Cursor, error os.Error) {
 
 func (self *Connection) Close() (error os.Error) {
 	rc := C.wsq_close(self.handle);
-	if rc != 0 {
+	if rc != sqliteOk {
 		error = self.error();
 	}
 	return;
