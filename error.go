@@ -25,7 +25,7 @@ func (self *InterfaceError) String() string {
 	in addition to textual messages.
 */
 type DatabaseError struct {
-	*InterfaceError;
+	message string;
 	basic int;
 	extended int;
 }
@@ -34,11 +34,9 @@ type DatabaseError struct {
 	Textual description of the error.
 	Implements os.Error interface.
 */
-/*
 func (self *DatabaseError) String() string {
 	return self.message;
 }
-*/
 
 /*
 	Basic SQLite error code. These are plain
