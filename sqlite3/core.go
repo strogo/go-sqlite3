@@ -18,6 +18,7 @@ import "unsafe"
 import "fmt"
 import "os"
 import "strconv"
+import "db"
 
 
 /*
@@ -64,12 +65,20 @@ type Cursor struct {
 	result bool;
 }
 
+/* idiom to ensure that signatures are exactly as specified in db */
+var Version db.VersionSignature;
+var Open db.OpenSignature;
+func init() {
+	Version = version;
+	Open = open;
+}
+
 /*
 	The SQLite database interface returns keys "version",
 	"sqlite3.sourceid", and "sqlite3.versionnumber"; the
 	latter are specific to SQLite.
 */
-func Version() (data map[string]string, error os.Error)
+func version() (data map[string]string, error os.Error)
 {
 	data = make(map[string]string);
 
@@ -126,14 +135,14 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 }
 
 /* TODO: use URIs instead? http://golang.org/pkg/http/#URL */
-func Open(info ConnectionInfo) (conn *Connection, error os.Error)
+func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 {
 	name, flags, vfs, error := parseConnInfo(info);
 	if error != nil {
 		return;
 	}
 
-	conn = new(Connection);
+	conn := new(Connection);
 
 	rc := StatusOk;
 	p := C.CString(name);
@@ -158,6 +167,7 @@ func Open(info ConnectionInfo) (conn *Connection, error os.Error)
 		}
 	}
 
+	connection = conn;
 	return;
 }
 
@@ -173,6 +183,13 @@ func (self *Connection) Cursor() (cursor *Cursor, error os.Error) {
 	cursor = new(Cursor);
 	cursor.connection = self;
 	return;
+}
+
+func (self *Connection) Prepare(query string) (db.Statement, os.Error) {
+	return nil, nil;
+}
+func (self *Connection) Execute(statement db.Statement, parameters ...) (db.Cursor, os.Error) {
+	return nil, nil;
 }
 
 func (self *Connection) Close() (error os.Error) {
