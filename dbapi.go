@@ -1,5 +1,16 @@
 /*
 	BRAINSTORMING ONLY! DON'T RELY ON THIS YET!
+
+	Terminology:
+
+	Database systems are pieces of software (usually outside of Go)
+	that allow storage and retrieval of data. Note that we try not
+	to imply "relational" at the level of this API.
+
+	Database interfaces are pieces of software (usually written in
+	Go) that allow Go programs to interact with database systems
+	through some query language. Note that we try not to imply "SQL"
+	at the level of this API.
 */
 
 package future_database_api_for_go
@@ -7,53 +18,43 @@ package future_database_api_for_go
 import "os"
 
 /*
-	Terminology: Database systems are pieces of software (usually
-	outside of Go) that allow storage and retrieval of data. Note
-	that we don't need to assume "relational" on the API level.
-	Database interfaces are pieces of software (written in and for
-	Go) that allow Go programs to interact with database systems
-	through the use of some query language. Note that we don't
-	need to assume "SQL" on the API level.
-*/
-
-/*
 	Each database interface must provide a Version() function to
-	allow careful clients to configure themselves accordingly.
-	The signature of Version() must be as follows:
-*/
+	allow careful clients to configure themselves appropriately
+	for the database system in question. There are a number of
+	well-known keys in the map returned by Version():
 
+	Key		Description
+
+	version		generic version
+	client		client version
+	server		server version
+	protocol	protocol version
+	interface	database interface version
+
+	The specific database interface can decide which of these
+	keys to return. For example, sqlite3 returns "version" and
+	"interface"; mysql should probably return all keys except
+	"version" instead.
+
+	Database interfaces can also return additional keys, provided
+	they prefix them appropriately. The sqlite3 interface, for
+	example, returns "sqlite3.sourceid" as well.
+*/
 type VersionSignature func () (map[string]string, os.Error)
 
 /*
-	There are a number of well-known keys such as "version",
-	"client", "server", and "protocol". Database interfaces
-	should return the most appropriate of these, together
-	with any interface specific information they want. TODO
+	Each database interface must provide an Open() function to
+	establish connections to a database system. Database systems
+	require a wide variety of parameters for connections, which
+	is why the parameters to Open() are passed as a map.
 
-	Each database interface must provide an Open() function. The
-	Open() function is used to establish a connection to a database
-	system. The signature of Open() must be as follows:
-*/
+	TODO: use map[string]string instead? may be friendlier if we
+	are sure we never need to pass anything complicated; or pass
+	a URI instead?
 
-type OpenSignature func (args Arguments) (connection Connection, error os.Error)
-
-/*
-	Different database systems require a wide variety of parameters
-	for the initial connection, which is why the Arguments type is
-	as generic as possible:
-*/
-
-type Any interface {}
-type Arguments map[string] Any
-
-/*
-	(TODO: use map[string]string instead? may be friendlier if we
-	are sure we never need to pass anything complicated)
-
-	Client applications have to create suitable map and pass it
-	to Open(). Each entry consists of a string key and a generic
-	value. There are a number of well-known keys that apply to a
-	wide variety of database systems:
+	Each map entry consists of a string key and a generic value.
+	There are a number of well-known keys that apply to many (if
+	not all) database systems:
 
 	Name		Type	Description
 
@@ -83,67 +84,107 @@ type Arguments map[string] Any
 	necessary, however those keys have to start with the package
 	name of the database interface in question. For example, the
 	sqlite3 interface supports the key "sqlite3.vfs".
-
-	A successful call to Open() results in a Connection to the
-	database system (there are several variations of this, but
-	Connection is the most basic one):
 */
+type OpenSignature func (args map[string]interface{}) (connection Connection, error os.Error)
 
+/*
+	A successful call to Open() results in a connection to the
+	database system. Specific database interfaces will return
+	connection objects conforming to one or more of the following
+	interfaces which represent different levels of functionality.
+
+	Note that the choice to separate Prepare() and Execute() for
+	the most basic connection interface is deliberate: It leaves
+	the database interface the most flexibilty in achieving good
+	performance without requiring it to implement additional
+	caching schemes.
+*/
 type Connection interface {
+	/*
+		Prepare() accepts a query language string and returns
+		a precompiled statement that can be executed after any
+		remaining parameters have been bound. The format of
+		parameters in the query string is dependent on the
+		database interface in question.
+	*/
 	Prepare(query string) (Statement, os.Error);
+	/*
+		Execute() accepts a precompiled statement, binds the
+		given parameters, and then executes the statement.
+		If the statement produces results, Execute() returns
+		a cursor; otherwise it returns nil.
+	*/
 	Execute(statement Statement, parameters ...) (Cursor, os.Error);
+	/*
+		Close() ends the connection to the database system
+		and frees up all internal resources associated with
+		it. After a connection has been closed, no further
+		operations are allowed on it.
+	*/
 	Close() os.Error
 }
 
 /*
-	Connections are used to prepare and execute queries. Compiling
-	queries once and then executing them repeatedly with different
-	parameter bindings allows performance gains for some database
-	interfaces. If a query produces results, Execute() returns a
-	Cursor; if there are no results, it returns nil. Once we are
-	done with a database connection, Close() should be called to
-	free up any leftover resources; after a connection has been
-	closed, no further operations are allowed on the connection.
+	InformativeConnections supply useful but optional information.
+	TODO: more operations?
 */
-
 type InformativeConnection interface {
 	Connection;
+	/*
+		If a query modified the database, Changes() returns the number
+		of changes that took place. Note that the database interface
+		has to explain what exactly constitutes a change for a given
+		database system and query.
+	*/
 	Changes() (int, os.Error);
 }
 
 /*
-	InformativeConnections supply useful but optional information.
-	If a query modified the database, Changes() returns the number
-	of changes that took place. Note that the database interface
-	has to explain what exactly constitutes a change for a given
-	database system and query.
+	FancyConnections support additional convenience operations.
+	TODO: more operations?
 */
-
 type FancyConnection interface {
 	Connection;
+	/*
+		ExecuteDirectly() is a wrapper around Prepare() and Execute().
+	*/
 	ExecuteDirectly(query string, parameters ...) (*Cursor, os.Error)
 }
 
 /*
-	FancyConnections support additional convenience operations.
-	ExecuteDirectly() is a wrapper around Prepare() and Execute().
+	TransactionalConnections support transactions. Note that
+	the database interface in question may be in "auto commit"
+	mode by default. Once you call Begin(), "auto commit" will
+	be disabled for that connection.
 */
-
 type TransactionalConnection interface {
 	Connection;
+	/*
+		Begin() starts a transaction.
+	*/
+	Begin() os.Error;
+	/*
+		Commit() tries to push all changes made as part
+		of the current transaction to the database.
+	*/
 	Commit() os.Error;
+	/*
+		Rollback() tries to undo all changes made as
+		part of the current transaction.
+	*/
 	Rollback() os.Error
 }
 
 /*
-	TODO
+	Statements are precompiled queries, possibly with remaining
+	parameter slots that need to be filled before execution.
+	TODO: include parameter binding API? or subsume in Execute()?
 */
-
 type Statement interface {
-	/* TODO: include parameter binding API? or subsume in Execute()? */
 }
 
 /*
+	TODO
 	Queries that produced results return a Cursor to allow clients
 	to iterate through the results (there are several variations of
 	this, but Cursor is the most basic one):
