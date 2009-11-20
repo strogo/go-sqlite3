@@ -15,7 +15,7 @@ type InterfaceError struct {
 	Textual description of the error.
 	Implements os.Error interface.
 */
-func (self *InterfaceError) String() string {
+func (self InterfaceError) String() string {
 	return self.message;
 }
 
@@ -101,7 +101,7 @@ type DatabaseError struct {
 	Textual description of the error.
 	Implements os.Error interface.
 */
-func (self *DatabaseError) String() string {
+func (self DatabaseError) String() string {
 	return self.message;
 }
 
@@ -109,7 +109,7 @@ func (self *DatabaseError) String() string {
 	Basic SQLite status code. These are plain
 	integers.
 */
-func (self *DatabaseError) Basic() int {
+func (self DatabaseError) Basic() int {
 	return self.basic;
 }
 
@@ -118,6 +118,6 @@ func (self *DatabaseError) Basic() int {
 	together from various bits and pieces on top
 	of basic status codes.
 */
-func (self *DatabaseError) Extended() int {
+func (self DatabaseError) Extended() int {
 	return self.extended;
 }
