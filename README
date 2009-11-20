@@ -1,9 +1,12 @@
-Work in progress. Two goals:
+Work in progress.
 
-  1. Enable access to SQLite databases from Go.
-  2. Design a generic database API for Go that
-     supports multiple RDBMSs.
+pkg/db
+	Generic database API for Go that supports
+	multiple RDBMSs.
 
-Both of these are partially accomplished. See
-core.go and error.go for the former, dbapi.go
-for the latter.
+pkg/db/sqlite
+	Enable access to SQLite databases from Go.
+
+These are in flux constantly, don't rely on them
+yet. Discussions regarding the generic API happen
+mostly on golang-nuts@googlegroups.com for now.
