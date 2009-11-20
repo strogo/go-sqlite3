@@ -45,13 +45,16 @@ const (
 	OpenPrivateCache = 0x00040000;
 )
 
+/* after we run into a lock, we'll retry for this long */
 const defaultTimeoutMilliseconds = 16*1000;
 
+/* SQLite connections */
 type Connection struct {
 	/* pointer to struct sqlite3 */
 	handle C.wsq_db;
 }
 
+/* SQLite cursors, will be renamed/refactored soon */
 type Cursor struct {
 	/* pointer to struct sqlite3_stmt */
 	handle C.wsq_st;
@@ -61,6 +64,11 @@ type Cursor struct {
 	result bool;
 }
 
+/*
+	The SQLite database interface returns keys "version",
+	"sqlite3.sourceid", and "sqlite3.versionnumber"; the
+	latter are specific to SQLite.
+*/
 func Version() (data map[string]string, error os.Error)
 {
 	data = make(map[string]string);
