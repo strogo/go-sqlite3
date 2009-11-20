@@ -15,7 +15,7 @@ package sqlite3
 import "C"
 import "unsafe"
 
-import "fmt"
+//import "fmt"
 import "os"
 import "strconv"
 import "db"
@@ -57,12 +57,20 @@ type Connection struct {
 
 /* SQLite cursors, will be renamed/refactored soon */
 type Cursor struct {
-	/* pointer to struct sqlite3_stmt */
-	handle C.wsq_st;
+	/* statement we were created for */
+	statement *Statement;
 	/* connection we were created on */
 	connection *Connection;
 	/* the last query yielded results */
 	result bool;
+}
+
+/* SQLite statements */
+type Statement struct {
+	/* pointer to struct sqlite3_stmt */
+	handle C.wsq_st;
+	/* connection we were created on */
+	connection *Connection;
 }
 
 /* idiom to ensure that signatures are exactly as specified in db */
@@ -171,6 +179,12 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 	return;
 }
 
+/* === Connection === */
+
+/*
+	Fill in a DatabaseError with information about
+	the last error from SQLite.
+*/
 func (self *Connection) error() (error os.Error) {
 	e := new(DatabaseError);
 	e.basic = int(C.wsq_errcode(self.handle));
@@ -179,20 +193,73 @@ func (self *Connection) error() (error os.Error) {
 	return e;
 }
 
-func (self *Connection) Cursor() (cursor *Cursor, error os.Error) {
-	cursor = new(Cursor);
-	cursor.connection = self;
+/*
+	Precompile query into Statement.
+*/
+func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error)
+{
+	q := C.CString(query);
+	s := new(Statement);
+
+	/* -1: process q until 0 byte, nil: don't return tail pointer */
+	rc := C.wsq_prepare(self.handle, q, -1, &s.handle, nil);
+
+	if rc != StatusOk {
+		error = self.error();
+		/*
+			did we get a handle anyway? if so we need to
+			finalize it, but that could trigger another,
+			secondary error; for now we ignore that one
+		*/
+		if s.handle != nil {
+			_ = C.wsq_finalize(s.handle);
+		}
+		return;
+	}
+
+	statement = s;
 	return;
 }
 
-func (self *Connection) Prepare(query string) (db.Statement, os.Error) {
-	return nil, nil;
-}
-func (self *Connection) Execute(statement db.Statement, parameters ...) (db.Cursor, os.Error) {
-	return nil, nil;
+/*
+	Execute precompiled Statement with given parameters (if any).
+*/
+func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error)
+{
+	s, ok := statement.(*Statement);
+	if !ok {
+		error = &InterfaceError{"Execute: Not an sqlite3 statement!"};
+		return;
+	}
+
+	/* TODO: bind parameters! */
+
+	rc := C.wsq_step(s.handle);
+
+	if rc != StatusDone && rc != StatusRow {
+		/* presumably any other outcome is an error */
+		error = self.error();
+	}
+
+	if rc == StatusRow {
+		/* statement is producing results, need a cursor */
+		c := new(Cursor);
+		c.statement = s;
+		c.connection = self;
+		c.result = true;
+		cursor = c;
+	}
+	else {
+		/* clean up after error or done */
+		C.wsq_reset(s.handle);
+		C.wsq_clear_bindings(s.handle);
+	}
+
+	return;
 }
 
 func (self *Connection) Close() (error os.Error) {
+	/* TODO */
 	rc := C.wsq_close(self.handle);
 	if rc != StatusOk {
 		error = self.error();
@@ -200,6 +267,60 @@ func (self *Connection) Close() (error os.Error) {
 	return;
 }
 
+/* === Cursor === */
+
+
+func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
+{
+	if !self.result {
+		error = &InterfaceError{"FetchOne: No results to fetch!"};
+		return;
+	}
+
+	nColumns := int(C.wsq_column_count(self.statement.handle));
+	if nColumns <= 0 {
+		error = &InterfaceError{"FetchOne: No columns in result!"};
+		return;
+	}
+
+	data = make([]interface{}, nColumns);
+	for i := 0; i < nColumns; i++ {
+		text := C.wsq_column_text(self.statement.handle, C.int(i));
+		data[i] = C.GoString(text);
+	}
+
+	rc := C.wsq_step(self.statement.handle);
+
+	if rc != StatusDone && rc != StatusRow {
+		/* presumably any other outcome is an error */
+		error = self.connection.error();
+	}
+
+	if rc == StatusDone {
+		/* clean up when done */
+		C.wsq_reset(self.statement.handle);
+		C.wsq_clear_bindings(self.statement.handle);
+	}
+
+	return;
+}
+
+func (self *Cursor) FetchMany(count int) ([][]interface {}, os.Error)
+{
+	return nil, nil;
+}
+
+func (self *Cursor) FetchAll() ([][]interface {}, os.Error)
+{
+	return nil, nil;
+}
+
+func (self *Cursor) Close() os.Error
+{
+	return nil;
+}
+
+/*
 func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
 	query = fmt.Sprintf(query, parameters);
 
@@ -309,3 +430,4 @@ func (self *Cursor) Close() (error os.Error) {
 	}
 	return;
 }
+*/

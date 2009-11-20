@@ -1,6 +1,6 @@
 package main
 
-import "sqlite3"
+import "db/sqlite3"
 import "fmt"
 
 func main() {
@@ -22,16 +22,16 @@ func main() {
 
 	fmt.Printf("connection: %s\n", c);
 
-	fmt.Printf("About to create cursor\n");
-	cc, e := c.Cursor();
+	fmt.Printf("About to prepare statement\n");
+	s, e := c.Prepare("SELECT * FROM users");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
 
-	fmt.Printf("cursor: %s\n", cc);
+	fmt.Printf("statement: %s\n", s);
 
 	fmt.Printf("About to execute query\n");
-	e = cc.Execute("SELECT * FROM users");
+	cc, e := c.Execute(s);
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
@@ -50,7 +50,7 @@ func main() {
 //	}
 
 		fmt.Printf("About to fetch another row\n");
-		f, e := cc.FetchRow();
+		f, e := cc.FetchOne();
 		if e != nil {
 			fmt.Printf("error: %s\n", e.String());
 //			break;
