@@ -80,3 +80,13 @@ int wsq_busy_timeout(wsq_db database, int milliseconds)
 {
 	return sqlite3_busy_timeout(database, milliseconds);
 }
+
+int wsq_reset(wsq_st statement)
+{
+	return sqlite3_reset(statement);
+}
+
+int wsq_clear_bindings(wsq_st statement)
+{
+	return sqlite3_clear_bindings(statement);
+}

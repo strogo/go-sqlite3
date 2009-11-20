@@ -63,4 +63,10 @@ int wsq_libversion_number(void);
 /* really sqlite3_busy_timeout */
 int wsq_busy_timeout(wsq_db database, int milliseconds);
 
+/* really sqlite3_reset */
+int wsq_reset(wsq_st statement);
+
+/* really sqlite3_clear_bindings */
+int wsq_clear_bindings(wsq_st statement);
+
 #endif /* !_WRAP_SQLITE3_H_ */
