@@ -65,6 +65,12 @@ func main() {
 		fmt.Printf("error: %s\n", e.String());
 	}
 
+	fmt.Printf("About to close statement\n");
+	e = s.Close();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+
 	fmt.Printf("About to close connection\n");
 	e = c.Close();
 	if e != nil {

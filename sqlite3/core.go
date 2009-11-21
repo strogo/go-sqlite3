@@ -20,7 +20,6 @@ import "os"
 import "strconv"
 import "db"
 
-
 /*
 	These constants can be or'd together and passed as the
 	"sqlite3.flags" argument to Open(). Some of them only
@@ -98,13 +97,20 @@ func version() (data map[string]string, error os.Error)
 	data["version"] = C.GoString(cp);
 	// TODO: fake client and server keys?
 
-	cp = C.wsq_sourceid();
-	if (cp != nil) {
-		data["sqlite3.sourceid"] = C.GoString(cp);
-	}
-
 	i := C.wsq_libversion_number();
 	data["sqlite3.versionnumber"] = strconv.Itob(int(i), 10);
+
+	/*
+		Debian's SQLite 3.5.9 has no sqlite3_sourceid,
+		still need to find the correct version to cut
+		off on.
+	*/
+        if i > 3005009 {
+		cp = C.wsq_sourceid();
+		if (cp != nil) {
+			data["sqlite3.sourceid"] = C.GoString(cp);
+		}
+	}
 
 	return;
 }
@@ -164,18 +170,26 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 		rc = int(C.wsq_open(p, &conn.handle, C.int(flags), nil));
 	}
 
+	connection = conn;
+
 	C.free(unsafe.Pointer(p));
 	if rc != StatusOk {
 		error = conn.error();
-	}
-	else {
-		rc := C.wsq_busy_timeout(conn.handle, defaultTimeoutMilliseconds);
-		if rc != StatusOk {
-			error = conn.error();
-		}
+		return;
 	}
 
-	connection = conn;
+	rc = int(C.wsq_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
+	if rc != StatusOk {
+		error = conn.error();
+		return;
+	}
+
+	rc = int(C.wsq_extended_result_codes(conn.handle, 1));
+	if rc != StatusOk {
+		error = conn.error();
+		return;
+	}
+
 	return;
 }
 
@@ -187,8 +201,15 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 */
 func (self *Connection) error() (error os.Error) {
 	e := new(DatabaseError);
-	e.basic = int(C.wsq_errcode(self.handle));
-	e.extended = int(C.wsq_extended_errcode(self.handle));
+	/*
+		Debian's SQLite 3.5.9 has no sqlite3_extended_errcode.
+		It's not really needed anyway if we ask SQLite to use
+		extended codes for the normal sqlite3_errcode() call;
+		we just have to mask out high bits to turn them back
+		into basic errors. :-D
+	*/
+	e.extended = int(C.wsq_errcode(self.handle));
+	e.basic = e.extended & 0xff;
 	e.message = C.GoString(C.wsq_errmsg(self.handle));
 	return e;
 }
@@ -200,6 +221,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 {
 	q := C.CString(query);
 	s := new(Statement);
+	s.connection = self;
 
 	/* -1: process q until 0 byte, nil: don't return tail pointer */
 	rc := C.wsq_prepare(self.handle, q, -1, &s.handle, nil);
@@ -267,9 +289,23 @@ func (self *Connection) Close() (error os.Error) {
 	return;
 }
 
+/* === Statement === */
+
+func (self *Statement) Close() (error os.Error) {
+	rc := C.wsq_finalize(self.handle);
+	if rc != StatusOk {
+		error = self.connection.error();
+	}
+	return;
+}
+
 /* === Cursor === */
 
-
+/*
+	Fetch another result. Once results are exhausted, the
+	the statement that produced them will be reset and
+	ready for another execution.
+*/
 func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 {
 	if !self.result {
@@ -297,6 +333,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	}
 
 	if rc == StatusDone {
+		self.result = false;
 		/* clean up when done */
 		C.wsq_reset(self.statement.handle);
 		C.wsq_clear_bindings(self.statement.handle);
