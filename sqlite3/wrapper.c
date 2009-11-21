@@ -51,11 +51,6 @@ int wsq_errcode(wsq_db database)
 	return sqlite3_errcode(database);
 }
 
-int wsq_extended_errcode(wsq_db database)
-{
-	return sqlite3_extended_errcode(database);
-}
-
 const char *wsq_errmsg(wsq_db database)
 {
 	return sqlite3_errmsg(database);
@@ -89,4 +84,9 @@ int wsq_reset(wsq_st statement)
 int wsq_clear_bindings(wsq_st statement)
 {
 	return sqlite3_clear_bindings(statement);
+}
+
+int wsq_extended_result_codes(wsq_db database, int onoff)
+{
+	return sqlite3_extended_result_codes(database, onoff);
 }
