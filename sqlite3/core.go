@@ -15,10 +15,10 @@ package sqlite3
 import "C"
 import "unsafe"
 
-//import "fmt"
+import "db"
+
 import "os"
 import "strconv"
-import "db"
 
 /*
 	These constants can be or'd together and passed as the
@@ -30,15 +30,15 @@ const (
 	OpenReadOnly = 0x00000001;
 	OpenReadWrite = 0x00000002;
 	OpenCreate = 0x00000004;
-	OpenDeleteOnClose = 0x00000008;  /* VFS only */
-	OpenExclusive = 0x00000010;  /* VFS only */
-	OpenMainDb = 0x00000100;  /* VFS only */
-	OpenTempDb = 0x00000200;  /* VFS only */
-	OpenTransientDb = 0x00000400;  /* VFS only */
-	OpenMainJournal = 0x00000800;  /* VFS only */
-	OpenTempJournal = 0x00001000;  /* VFS only */
-	OpenSubJournal = 0x00002000;  /* VFS only */
-	OpenMasterJournal = 0x00004000;  /* VFS only */
+	OpenDeleteOnClose = 0x00000008; /* VFS only */
+	OpenExclusive = 0x00000010; /* VFS only */
+	OpenMainDb = 0x00000100; /* VFS only */
+	OpenTempDb = 0x00000200; /* VFS only */
+	OpenTransientDb = 0x00000400; /* VFS only */
+	OpenMainJournal = 0x00000800; /* VFS only */
+	OpenTempJournal = 0x00001000; /* VFS only */
+	OpenSubJournal = 0x00002000; /* VFS only */
+	OpenMasterJournal = 0x00004000; /* VFS only */
 	OpenNoMutex = 0x00008000;
 	OpenFullMutex = 0x00010000;
 	OpenSharedCache = 0x00020000;
@@ -54,6 +54,14 @@ type Connection struct {
 	handle C.wsq_db;
 }
 
+/* SQLite statements */
+type Statement struct {
+	/* pointer to struct sqlite3_stmt */
+	handle C.wsq_st;
+	/* connection we were created on */
+	connection *Connection;
+}
+
 /* SQLite cursors, will be renamed/refactored soon */
 type Cursor struct {
 	/* statement we were created for */
@@ -62,14 +70,6 @@ type Cursor struct {
 	connection *Connection;
 	/* the last query yielded results */
 	result bool;
-}
-
-/* SQLite statements */
-type Statement struct {
-	/* pointer to struct sqlite3_stmt */
-	handle C.wsq_st;
-	/* connection we were created on */
-	connection *Connection;
 }
 
 /* idiom to ensure that signatures are exactly as specified in db */
@@ -85,8 +85,7 @@ func init() {
 	"sqlite3.sourceid", and "sqlite3.versionnumber"; the
 	latter are specific to SQLite.
 */
-func version() (data map[string]string, error os.Error)
-{
+func version() (data map[string]string, error os.Error) {
 	data = make(map[string]string);
 
 	cp := C.wsq_libversion();
@@ -118,8 +117,7 @@ func version() (data map[string]string, error os.Error)
 type Any interface{};
 type ConnectionInfo map[string] Any;
 
-func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, error os.Error)
-{
+func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, error os.Error) {
 	ok := false;
 	any := Any(nil);
 
@@ -136,13 +134,21 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 
 	any, ok = info["sqlite.flags"];
 	if ok {
-		flags = any.(int);
+		flags, ok = any.(int);
+		if !ok {
+			error = &InterfaceError{"Open: \"flags\" argument not an int."};
+			return;
+		}
 	}
 
 	any, ok = info["sqlite.vfs"];
 	if ok {
 		vfs = new(string);
-		*vfs = any.(string);
+		*vfs, ok = any.(string);
+		if !ok {
+			error = &InterfaceError{"Open: \"vfs\" argument not a string."};
+			return;
+		}
 	}
 
 	return;
@@ -184,7 +190,7 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 		return;
 	}
 
-	rc = int(C.wsq_extended_result_codes(conn.handle, 1));
+	rc = int(C.wsq_extended_result_codes(conn.handle, C.int(1)));
 	if rc != StatusOk {
 		error = conn.error();
 		return;
@@ -224,6 +230,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 	s.connection = self;
 
 	/* -1: process q until 0 byte, nil: don't return tail pointer */
+	/* TODO: may need tail to process statement sequence? */
 	rc := C.wsq_prepare(self.handle, q, -1, &s.handle, nil);
 
 	if rc != StatusOk {
@@ -231,7 +238,9 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 		/*
 			did we get a handle anyway? if so we need to
 			finalize it, but that could trigger another,
-			secondary error; for now we ignore that one
+			secondary error; for now we ignore that one;
+			note that we shouldn't get a handle if there
+			was an error, that's what the docs say...
 		*/
 		if s.handle != nil {
 			_ = C.wsq_finalize(s.handle);
@@ -244,7 +253,12 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 }
 
 /*
-	Execute precompiled Statement with given parameters (if any).
+	Execute precompiled Statement with given parameters
+	(if any). The statement stays valid even if we fail
+	to execute with given parameters.
+
+	TODO: Figure out parameter stuff, right now all are
+	TEXT parameters. :-/
 */
 func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error)
 {
@@ -354,75 +368,15 @@ func (self *Cursor) FetchAll() ([][]interface {}, os.Error)
 
 func (self *Cursor) Close() os.Error
 {
+	/*
+		Hmmm... There's really nothing to do since
+		we want the statement to stay around. Should
+		we reset it here?
+	*/
 	return nil;
 }
 
 /*
-func (self *Cursor) Execute(query string, parameters ...) (error os.Error) {
-	query = fmt.Sprintf(query, parameters);
-
-	q := C.CString(query);
-
-	rc := C.wsq_prepare(self.connection.handle, q, -1, &self.handle, nil);
-	if rc != StatusOk {
-		error = self.connection.error();
-		if self.handle != nil {
-			// TODO: finalize
-		}
-		return;
-	}
-
-	rc = C.wsq_step(self.handle);
-	switch rc {
-		case StatusDone:
-			self.result = false;
-			// TODO: finalize
-		case StatusRow:
-			self.result = true;
-			// TODO: obtain results somehow? or later call?
-		default:
-			error = self.connection.error();
-			// TODO: finalize
-			return;
-	}
-
-	C.free(unsafe.Pointer(q));
-	return;
-}
-
-func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
-	if !self.result {
-		error = &InterfaceError{"FetchOne: No results to fetch!"};
-		return;
-	}
-
-	nColumns := int(C.wsq_column_count(self.handle));
-	if nColumns <= 0 {
-		error = &InterfaceError{"FetchOne: No columns in result!"};
-		return;
-	}
-
-	data = make([]interface{}, nColumns);
-	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.handle, C.int(i));
-		data[i] = C.GoString(text);
-	}
-
-	rc := C.wsq_step(self.handle);
-	switch rc {
-		case StatusDone:
-			self.result = false;
-			// TODO: finalize
-		case StatusRow:
-			self.result = true;
-		default:
-			error = self.connection.error();
-			// TODO: finalize
-			return;
-	}
-
-	return;
-}
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
 		error = &InterfaceError{"FetchRow: No results to fetch!"};
@@ -455,16 +409,6 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 			return;
 	}
 
-	return;
-}
-
-func (self *Cursor) Close() (error os.Error) {
-	if self.handle != nil {
-		rc := C.wsq_finalize(self.handle);
-		if rc != StatusOk {
-			error = self.connection.error();
-		}
-	}
 	return;
 }
 */
