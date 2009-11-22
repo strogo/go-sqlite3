@@ -13,3 +13,9 @@ INSERT INTO Users (login, password, name, email)
 
 INSERT INTO Users (login, password, name, email)
   VALUES ("adt", "somepassword", "Abstract Data Type", "adt@adt.adt");
+
+INSERT INTO Users (login, password, name, email)
+  VALUES ("xyz", "somepassword", "Alphabet End Soup", "xyz@xyz.go");
+
+INSERT INTO Users (login, password, name, email)
+  VALUES ("abc", "somepassword", "Alphabet Soup", "abc@abc.go");
