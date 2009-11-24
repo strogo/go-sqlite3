@@ -38,26 +38,32 @@ func main() {
 
 	fmt.Printf("cursor: %s\n", cc);
 
-//	for {
-		fmt.Printf("About to fetch one row\n");
-		d, e := cc.FetchOne();
-		if e != nil {
-			fmt.Printf("error: %s\n", e.String());
-//			break;
-		}
-		fmt.Printf("cursor: %s\n", cc);
-		fmt.Printf("data: %s\n", d);
-//	}
+	fmt.Printf("About to fetch one row\n");
+	d, e := cc.FetchOne();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("cursor: %s\n", cc);
+	fmt.Printf("data: %s\n", d);
 
-		fmt.Printf("About to fetch another row\n");
-		f, e := cc.FetchOne();
-		if e != nil {
-			fmt.Printf("error: %s\n", e.String());
-//			break;
-		}
-		fmt.Printf("cursor: %s\n", cc);
-		fmt.Printf("data: %s\n", f);
+	fmt.Printf("About to fetch another row\n");
+	f, e := cc.FetchOne();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("cursor: %s\n", cc);
+	fmt.Printf("data: %s\n", f);
 
+	fmt.Printf("About to fetch the rest\n");
+	g, e := cc.FetchMany(10);
+	fmt.Printf("%s\n", g);
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("cursor: %s\n", cc);
+	for _, y := range g {
+		fmt.Printf("data: %s\n", y);
+	}
 
 	fmt.Printf("About to close cursor\n");
 	e = cc.Close();

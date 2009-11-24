@@ -315,6 +315,11 @@ func (self *Statement) Close() (error os.Error) {
 
 /* === Cursor === */
 
+func (self *Cursor) MoreResults() bool
+{
+	return self.result;
+}
+
 /*
 	Fetch another result. Once results are exhausted, the
 	the statement that produced them will be reset and
@@ -327,28 +332,29 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 		return;
 	}
 
+	// assemble results from current row
 	nColumns := int(C.wsq_column_count(self.statement.handle));
 	if nColumns <= 0 {
 		error = &InterfaceError{"FetchOne: No columns in result!"};
 		return;
 	}
-
 	data = make([]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
 		text := C.wsq_column_text(self.statement.handle, C.int(i));
 		data[i] = C.GoString(text);
 	}
 
+	// try to get another row
 	rc := C.wsq_step(self.statement.handle);
 
 	if rc != StatusDone && rc != StatusRow {
-		/* presumably any other outcome is an error */
+		// presumably any other outcome is an error
 		error = self.connection.error();
 	}
 
 	if rc == StatusDone {
 		self.result = false;
-		/* clean up when done */
+		// clean up when done
 		C.wsq_reset(self.statement.handle);
 		C.wsq_clear_bindings(self.statement.handle);
 	}
@@ -356,9 +362,48 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	return;
 }
 
-func (self *Cursor) FetchMany(count int) ([][]interface {}, os.Error)
-{
-	return nil, nil;
+/*
+	Fetch at most count results. If we get no results at
+	all, an error will be returned; otherwise it probably
+	still occurred but will be hidden.
+*/
+func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error) {
+	d := make([][]interface{}, count);
+	i := 0;
+	var e os.Error;
+
+	// grab at most count results
+	for i < count {
+		d[i], e = self.FetchOne();
+		if e == nil {
+			i += 1;
+		}
+		else {
+			break;
+		}
+	}
+
+	if i > 0 {
+		// there were results
+		if i < count {
+			// but fewer than expected, need fresh copy
+			data = make([][]interface{}, i);
+			j := 0;
+			for j < i {
+				data[j] = d[j];
+				j++;
+			}
+		}
+		else {
+			data = d;
+		}
+	}
+	else {
+		// no results at all, return the error
+		error = e;
+	}
+
+	return;
 }
 
 func (self *Cursor) FetchAll() ([][]interface {}, os.Error)
