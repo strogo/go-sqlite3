@@ -23,6 +23,7 @@ import "db"
 
 import "os"
 import "strconv"
+import "container/vector"
 
 /*
 	These constants can be or'd together and passed as the
@@ -373,29 +374,27 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 */
 func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error) {
 	d := make([][]interface{}, count);
-	i := 0;
+	l := 0;
 	var e os.Error;
 
 	// grab at most count results
-	for i < count {
-		d[i], e = self.FetchOne();
+	for l < count {
+		d[l], e = self.FetchOne();
 		if e == nil {
-			i += 1;
+			l += 1;
 		}
 		else {
 			break;
 		}
 	}
 
-	if i > 0 {
+	if l > 0 {
 		// there were results
-		if i < count {
+		if l < count {
 			// but fewer than expected, need fresh copy
-			data = make([][]interface{}, i);
-			j := 0;
-			for j < i {
-				data[j] = d[j];
-				j++;
+			data = make([][]interface{}, l);
+			for i := 0; i < l; i++ {
+				data[i] = d[i];
 			}
 		}
 		else {
@@ -410,9 +409,36 @@ func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error)
 	return;
 }
 
-func (self *Cursor) FetchAll() ([][]interface {}, os.Error)
+func (self *Cursor) FetchAll() (data [][]interface {}, error os.Error)
 {
-	return nil, nil;
+	v := vector.New(0);
+	var d interface{};
+	var e os.Error;
+
+	// grab results until error
+	for {
+		d, e = self.FetchOne();
+		if e != nil {
+			break;
+		}
+		v.Push(d);
+	}
+
+	l := v.Len();
+
+	if l > 0 {
+		// TODO: how can this be done better?
+		data = make([][]interface{}, l);
+		for i := 0; i < l; i++ {
+			data[i] = v.At(i).([]interface{});
+		}
+	}
+	else {
+		// no results at all, return the error
+		error = e;
+	}
+
+	return;
 }
 
 func (self *Cursor) Close() os.Error

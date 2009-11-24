@@ -4,6 +4,7 @@ import "db/sqlite3"
 import "fmt"
 
 func main() {
+	fmt.Printf("About to query version\n");
 	version, e := sqlite3.Version();
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
@@ -19,7 +20,6 @@ func main() {
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
-
 	fmt.Printf("connection: %s\n", c);
 
 	fmt.Printf("About to prepare statement\n");
@@ -27,7 +27,6 @@ func main() {
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
-
 	fmt.Printf("statement: %s\n", s);
 
 	fmt.Printf("About to execute query\n");
@@ -35,16 +34,36 @@ func main() {
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
-
 	fmt.Printf("cursor: %s\n", cc);
 
-	fmt.Printf("About to fetch one row\n");
-	d, e := cc.FetchOne();
+	fmt.Printf("About to fetch all results\n");
+	d, e := cc.FetchAll();
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
 	fmt.Printf("cursor: %s\n", cc);
 	fmt.Printf("data: %s\n", d);
+
+	fmt.Printf("About to close cursor\n");
+	e = cc.Close();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+
+	fmt.Printf("About to re-execute query\n");
+	cc, e = c.Execute(s);
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("cursor: %s\n", cc);
+
+	fmt.Printf("About to fetch one row\n");
+	r, e := cc.FetchOne();
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("cursor: %s\n", cc);
+	fmt.Printf("data: %s\n", r);
 
 	fmt.Printf("About to fetch another row\n");
 	f, e := cc.FetchOne();
