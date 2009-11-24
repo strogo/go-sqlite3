@@ -10,7 +10,11 @@ package sqlite3
 
 /*
 #include <stdlib.h>
-#include "wrapper.h"
+#include <sqlite3.h>
+const char *wsq_column_text(sqlite3_stmt *statement, int column)
+{
+	return (const char *) sqlite3_column_text(statement, column);
+}
 */
 import "C"
 import "unsafe"
@@ -51,13 +55,13 @@ const defaultTimeoutMilliseconds = 16*1000;
 /* SQLite connections */
 type Connection struct {
 	/* pointer to struct sqlite3 */
-	handle C.wsq_db;
+	handle *C.sqlite3;
 }
 
 /* SQLite statements */
 type Statement struct {
 	/* pointer to struct sqlite3_stmt */
-	handle C.wsq_st;
+	handle *C.sqlite3_stmt;
 	/* connection we were created on */
 	connection *Connection;
 }
@@ -88,7 +92,7 @@ func init() {
 func version() (data map[string]string, error os.Error) {
 	data = make(map[string]string);
 
-	cp := C.wsq_libversion();
+	cp := C.sqlite3_libversion();
 	if (cp == nil) {
 		error = &InterfaceError{"Version: couldn't get library version!"};
 		return;
@@ -96,7 +100,7 @@ func version() (data map[string]string, error os.Error) {
 	data["version"] = C.GoString(cp);
 	// TODO: fake client and server keys?
 
-	i := C.wsq_libversion_number();
+	i := C.sqlite3_libversion_number();
 	data["sqlite3.versionnumber"] = strconv.Itob(int(i), 10);
 
 	/*
@@ -105,7 +109,7 @@ func version() (data map[string]string, error os.Error) {
 		off on.
 	*/
         if i > 3005009 {
-		cp = C.wsq_sourceid();
+		cp = C.sqlite3_sourceid();
 		if (cp != nil) {
 			data["sqlite3.sourceid"] = C.GoString(cp);
 		}
@@ -169,11 +173,11 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 
 	if vfs != nil {
 		q := C.CString(*vfs);
-		rc = int(C.wsq_open(p, &conn.handle, C.int(flags), q));
+		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
 		C.free(unsafe.Pointer(q));
 	}
 	else {
-		rc = int(C.wsq_open(p, &conn.handle, C.int(flags), nil));
+		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil));
 	}
 
 	connection = conn;
@@ -184,13 +188,13 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 		return;
 	}
 
-	rc = int(C.wsq_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
+	rc = int(C.sqlite3_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
 	if rc != StatusOk {
 		error = conn.error();
 		return;
 	}
 
-	rc = int(C.wsq_extended_result_codes(conn.handle, C.int(1)));
+	rc = int(C.sqlite3_extended_result_codes(conn.handle, C.int(1)));
 	if rc != StatusOk {
 		error = conn.error();
 		return;
@@ -214,9 +218,9 @@ func (self *Connection) error() (error os.Error) {
 		we just have to mask out high bits to turn them back
 		into basic errors. :-D
 	*/
-	e.extended = int(C.wsq_errcode(self.handle));
+	e.extended = int(C.sqlite3_errcode(self.handle));
 	e.basic = e.extended & 0xff;
-	e.message = C.GoString(C.wsq_errmsg(self.handle));
+	e.message = C.GoString(C.sqlite3_errmsg(self.handle));
 	return e;
 }
 
@@ -231,7 +235,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 
 	/* -1: process q until 0 byte, nil: don't return tail pointer */
 	/* TODO: may need tail to process statement sequence? */
-	rc := C.wsq_prepare(self.handle, q, -1, &s.handle, nil);
+	rc := C.sqlite3_prepare(self.handle, q, -1, &s.handle, nil);
 
 	if rc != StatusOk {
 		error = self.error();
@@ -243,7 +247,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 			was an error, that's what the docs say...
 		*/
 		if s.handle != nil {
-			_ = C.wsq_finalize(s.handle);
+			_ = C.sqlite3_finalize(s.handle);
 		}
 		return;
 	}
@@ -270,7 +274,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 
 	/* TODO: bind parameters! */
 
-	rc := C.wsq_step(s.handle);
+	rc := C.sqlite3_step(s.handle);
 
 	if rc != StatusDone && rc != StatusRow {
 		/* presumably any other outcome is an error */
@@ -287,8 +291,8 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 	}
 	else {
 		/* clean up after error or done */
-		C.wsq_reset(s.handle);
-		C.wsq_clear_bindings(s.handle);
+		C.sqlite3_reset(s.handle);
+		C.sqlite3_clear_bindings(s.handle);
 	}
 
 	return;
@@ -296,7 +300,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 
 func (self *Connection) Close() (error os.Error) {
 	/* TODO */
-	rc := C.wsq_close(self.handle);
+	rc := C.sqlite3_close(self.handle);
 	if rc != StatusOk {
 		error = self.error();
 	}
@@ -306,7 +310,7 @@ func (self *Connection) Close() (error os.Error) {
 /* === Statement === */
 
 func (self *Statement) Close() (error os.Error) {
-	rc := C.wsq_finalize(self.handle);
+	rc := C.sqlite3_finalize(self.handle);
 	if rc != StatusOk {
 		error = self.connection.error();
 	}
@@ -333,7 +337,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	}
 
 	// assemble results from current row
-	nColumns := int(C.wsq_column_count(self.statement.handle));
+	nColumns := int(C.sqlite3_column_count(self.statement.handle));
 	if nColumns <= 0 {
 		error = &InterfaceError{"FetchOne: No columns in result!"};
 		return;
@@ -345,7 +349,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	}
 
 	// try to get another row
-	rc := C.wsq_step(self.statement.handle);
+	rc := C.sqlite3_step(self.statement.handle);
 
 	if rc != StatusDone && rc != StatusRow {
 		// presumably any other outcome is an error
@@ -355,8 +359,8 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	if rc == StatusDone {
 		self.result = false;
 		// clean up when done
-		C.wsq_reset(self.statement.handle);
-		C.wsq_clear_bindings(self.statement.handle);
+		C.sqlite3_reset(self.statement.handle);
+		C.sqlite3_clear_bindings(self.statement.handle);
 	}
 
 	return;
@@ -428,7 +432,7 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 		return;
 	}
 
-	nColumns := int(C.wsq_column_count(self.handle));
+	nColumns := int(C.sqlite3_column_count(self.handle));
 	if nColumns <= 0 {
 		error = &InterfaceError{"FetchRow: No columns in result!"};
 		return;
@@ -436,12 +440,12 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	data = make(map[string]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.handle, C.int(i));
-		name := C.wsq_column_name(self.handle, C.int(i));
+		text := C.sqlite3_column_text(self.handle, C.int(i));
+		name := C.sqlite3_column_name(self.handle, C.int(i));
 		data[C.GoString(name)] = C.GoString(text);
 	}
 
-	rc := C.wsq_step(self.handle);
+	rc := C.sqlite3_step(self.handle);
 	switch rc {
 		case StatusDone:
 			self.result = false;
