@@ -15,6 +15,10 @@ const char *wsq_column_text(sqlite3_stmt *statement, int column)
 {
 	return (const char *) sqlite3_column_text(statement, column);
 }
+int wsq_bind_text(sqlite3_stmt *statement, int i, const char* text, int n)
+{
+	return sqlite3_bind_text(statement, i, text, n, SQLITE_TRANSIENT);
+}
 */
 import "C"
 import "unsafe"
@@ -24,6 +28,7 @@ import "db"
 import "os"
 import "strconv"
 import "container/vector"
+import "reflect"
 
 /*
 	These constants can be or'd together and passed as the
@@ -257,8 +262,28 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 	return;
 }
 
+// stolen from fmt package, special-cases interface values
+func getField(v *reflect.StructValue, i int) reflect.Value {
+	val := v.Field(i);
+	if i, ok := val.(*reflect.InterfaceValue); ok {
+		if inter := i.Interface(); inter != nil {
+			return reflect.NewValue(inter)
+		}
+	}
+	return val;
+}
+
+func struct2array(s *reflect.StructValue) (r []interface{}) {
+	l := s.NumField();
+	r = make([]interface{}, l);
+	for i := 0; i < l; i++ {
+		r[i]  = getField(s, i);
+	}
+	return;
+}
+
 /*
-	Execute precompiled Statement with given parameters
+	Execute precompiled statement with given parameters
 	(if any). The statement stays valid even if we fail
 	to execute with given parameters.
 
@@ -273,7 +298,26 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 		return;
 	}
 
-	/* TODO: bind parameters! */
+	p := reflect.NewValue(parameters).(*reflect.StructValue);
+
+	if p.NumField() != int(C.sqlite3_bind_parameter_count(s.handle)) {
+		error = &InterfaceError{"Execute: Number of parameters doesn't match!"};
+		return;
+	}
+
+	pa := struct2array(p);
+
+	for k, v := range pa {
+		q := C.CString(v.(*reflect.StringValue).Get());
+		rc := C.wsq_bind_text(s.handle, C.int(k+1), q, C.int(-1));
+		C.free(unsafe.Pointer(q));
+
+		if rc != StatusOk {
+			error = self.error();
+			s.clear();
+			return;
+		}
+	}
 
 	rc := C.sqlite3_step(s.handle);
 
@@ -292,8 +336,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 	}
 	else {
 		/* clean up after error or done */
-		C.sqlite3_reset(s.handle);
-		C.sqlite3_clear_bindings(s.handle);
+		s.clear();
 	}
 
 	return;
@@ -315,6 +358,18 @@ func (self *Statement) Close() (error os.Error) {
 	if rc != StatusOk {
 		error = self.connection.error();
 	}
+	return;
+}
+
+func (self *Statement) clear() (error os.Error) {
+	rc := C.sqlite3_reset(self.handle);
+	if rc == StatusOk {
+		rc := C.sqlite3_clear_bindings(self.handle);
+		if rc == StatusOk {
+			return;
+		}
+	}
+	error = self.connection.error();
 	return;
 }
 
@@ -360,8 +415,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	if rc == StatusDone {
 		self.result = false;
 		// clean up when done
-		C.sqlite3_reset(self.statement.handle);
-		C.sqlite3_clear_bindings(self.statement.handle);
+		self.statement.clear();
 	}
 
 	return;

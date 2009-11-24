@@ -23,14 +23,14 @@ func main() {
 	fmt.Printf("connection: %s\n", c);
 
 	fmt.Printf("About to prepare statement\n");
-	s, e := c.Prepare("SELECT * FROM users");
+	s, e := c.Prepare("SELECT rowid, * FROM users WHERE password=?");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
 	fmt.Printf("statement: %s\n", s);
 
 	fmt.Printf("About to execute query\n");
-	cc, e := c.Execute(s);
+	cc, e := c.Execute(s, "somepassword");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
@@ -51,7 +51,7 @@ func main() {
 	}
 
 	fmt.Printf("About to re-execute query\n");
-	cc, e = c.Execute(s);
+	cc, e = c.Execute(s, "somepassword");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
