@@ -465,7 +465,7 @@ func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error)
 
 func (self *Cursor) FetchAll() (data [][]interface {}, error os.Error)
 {
-	v := vector.New(0);
+	var v vector.Vector;
 	var d interface{};
 	var e os.Error;
 
