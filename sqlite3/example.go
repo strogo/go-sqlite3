@@ -1,5 +1,6 @@
 package main
 
+import "db"
 import "db/sqlite3"
 import "fmt"
 
@@ -95,6 +96,13 @@ func main() {
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}
+
+	fmt.Printf("About to execute directly\n");
+	d, e = db.ExecuteDirectly(c, "SELECT * FROM users");
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("data: %s\n", d);
 
 	fmt.Printf("About to close connection\n");
 	e = c.Close();
