@@ -3,6 +3,8 @@
 */
 package sqlite3
 
+import "fmt";
+
 /*
 	Error in the database interface itself, *not*
 	the database system we talk to.
@@ -102,7 +104,7 @@ type DatabaseError struct {
 	Implements os.Error interface.
 */
 func (self DatabaseError) String() string {
-	return self.message;
+	return fmt.Sprintf("%s (%d:%d)", self.message, self.basic, self.extended);
 }
 
 /*
