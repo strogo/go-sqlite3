@@ -37,26 +37,26 @@ import "reflect"
 	documentation for details.
 */
 const (
-	OpenReadOnly = 0x00000001;
-	OpenReadWrite = 0x00000002;
-	OpenCreate = 0x00000004;
-	OpenDeleteOnClose = 0x00000008; /* VFS only */
-	OpenExclusive = 0x00000010; /* VFS only */
-	OpenMainDb = 0x00000100; /* VFS only */
-	OpenTempDb = 0x00000200; /* VFS only */
-	OpenTransientDb = 0x00000400; /* VFS only */
-	OpenMainJournal = 0x00000800; /* VFS only */
-	OpenTempJournal = 0x00001000; /* VFS only */
-	OpenSubJournal = 0x00002000; /* VFS only */
-	OpenMasterJournal = 0x00004000; /* VFS only */
-	OpenNoMutex = 0x00008000;
-	OpenFullMutex = 0x00010000;
-	OpenSharedCache = 0x00020000;
-	OpenPrivateCache = 0x00040000;
+	OpenReadOnly		= 0x00000001;
+	OpenReadWrite		= 0x00000002;
+	OpenCreate		= 0x00000004;
+	OpenDeleteOnClose	= 0x00000008;	/* VFS only */
+	OpenExclusive		= 0x00000010;	/* VFS only */
+	OpenMainDb		= 0x00000100;	/* VFS only */
+	OpenTempDb		= 0x00000200;	/* VFS only */
+	OpenTransientDb		= 0x00000400;	/* VFS only */
+	OpenMainJournal		= 0x00000800;	/* VFS only */
+	OpenTempJournal		= 0x00001000;	/* VFS only */
+	OpenSubJournal		= 0x00002000;	/* VFS only */
+	OpenMasterJournal	= 0x00004000;	/* VFS only */
+	OpenNoMutex		= 0x00008000;
+	OpenFullMutex		= 0x00010000;
+	OpenSharedCache		= 0x00020000;
+	OpenPrivateCache	= 0x00040000;
 )
 
 /* after we run into a lock, we'll retry for this long */
-const defaultTimeoutMilliseconds = 16*1000;
+const defaultTimeoutMilliseconds = 16 * 1000
 
 /* SQLite connections */
 type Connection struct {
@@ -67,24 +67,25 @@ type Connection struct {
 /* SQLite statements */
 type Statement struct {
 	/* pointer to struct sqlite3_stmt */
-	handle *C.sqlite3_stmt;
+	handle	*C.sqlite3_stmt;
 	/* connection we were created on */
-	connection *Connection;
+	connection	*Connection;
 }
 
 /* SQLite cursors, will be renamed/refactored soon */
 type Cursor struct {
 	/* statement we were created for */
-	statement *Statement;
+	statement	*Statement;
 	/* connection we were created on */
-	connection *Connection;
+	connection	*Connection;
 	/* the last query yielded results */
-	result bool;
+	result	bool;
 }
 
 /* idiom to ensure that signatures are exactly as specified in db */
-var Version db.VersionSignature;
-var Open db.OpenSignature;
+var Version db.VersionSignature
+var Open db.OpenSignature
+
 func init() {
 	Version = version;
 	Open = open;
@@ -99,7 +100,7 @@ func version() (data map[string]string, error os.Error) {
 	data = make(map[string]string);
 
 	cp := C.sqlite3_libversion();
-	if (cp == nil) {
+	if cp == nil {
 		error = &InterfaceError{"Version: couldn't get library version!"};
 		return;
 	}
@@ -114,18 +115,18 @@ func version() (data map[string]string, error os.Error) {
 		still need to find the correct version to cut
 		off on.
 	*/
-        if i > 3005009 {
+	if i > 3005009 {
 		cp = C.sqlite3_sourceid();
-		if (cp != nil) {
-			data["sqlite3.sourceid"] = C.GoString(cp);
+		if cp != nil {
+			data["sqlite3.sourceid"] = C.GoString(cp)
 		}
 	}
 
 	return;
 }
 
-type Any interface{};
-type ConnectionInfo map[string] Any;
+type Any interface{}
+type ConnectionInfo map[string]Any
 
 func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, error os.Error) {
 	ok := false;
@@ -165,11 +166,10 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 }
 
 /* TODO: use URIs instead? http://golang.org/pkg/http/#URL */
-func open(info ConnectionInfo) (connection db.Connection, error os.Error)
-{
+func open(info ConnectionInfo) (connection db.Connection, error os.Error) {
 	name, flags, vfs, error := parseConnInfo(info);
 	if error != nil {
-		return;
+		return
 	}
 
 	conn := new(Connection);
@@ -181,9 +181,8 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error)
 		q := C.CString(*vfs);
 		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
 		C.free(unsafe.Pointer(q));
-	}
-	else {
-		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil));
+	} else {
+		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
 	}
 
 	connection = conn;
@@ -233,8 +232,7 @@ func (self *Connection) error() (error os.Error) {
 /*
 	Precompile query into Statement.
 */
-func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error)
-{
+func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error) {
 	q := C.CString(query);
 	s := new(Statement);
 	s.connection = self;
@@ -253,7 +251,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 			was an error, that's what the docs say...
 		*/
 		if s.handle != nil {
-			_ = C.sqlite3_finalize(s.handle);
+			_ = C.sqlite3_finalize(s.handle)
 		}
 		return;
 	}
@@ -277,7 +275,7 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 	l := s.NumField();
 	r = make([]interface{}, l);
 	for i := 0; i < l; i++ {
-		r[i]  = getField(s, i);
+		r[i] = getField(s, i)
 	}
 	return;
 }
@@ -290,8 +288,7 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 	TODO: Figure out parameter stuff, right now all are
 	TEXT parameters. :-/
 */
-func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error)
-{
+func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {
 		error = &InterfaceError{"Execute: Not an sqlite3 statement!"};
@@ -323,7 +320,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 
 	if rc != StatusDone && rc != StatusRow {
 		/* presumably any other outcome is an error */
-		error = self.error();
+		error = self.error()
 	}
 
 	if rc == StatusRow {
@@ -333,10 +330,9 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 		c.connection = self;
 		c.result = true;
 		cursor = c;
-	}
-	else {
+	} else {
 		/* clean up after error or done */
-		s.clear();
+		s.clear()
 	}
 
 	return;
@@ -344,7 +340,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 
 func iterate(cursor db.Cursor, channel chan<- db.Result) {
 	var err os.Error;
-	var data []interface{};
+	var data []interface{}
 	var res db.Result;
 
 	for cursor.MoreResults() {
@@ -362,7 +358,9 @@ func (self *Connection) Iterate(statement db.Statement, parameters ...) (channel
 	ch := make(chan db.Result);
 
 	cur, error := self.Execute(statement, parameters);
-	if error != nil { return }
+	if error != nil {
+		return
+	}
 
 	go iterate(cur, ch);
 
@@ -374,7 +372,7 @@ func (self *Connection) Close() (error os.Error) {
 	/* TODO */
 	rc := C.sqlite3_close(self.handle);
 	if rc != StatusOk {
-		error = self.error();
+		error = self.error()
 	}
 	return;
 }
@@ -384,7 +382,7 @@ func (self *Connection) Close() (error os.Error) {
 func (self *Statement) Close() (error os.Error) {
 	rc := C.sqlite3_finalize(self.handle);
 	if rc != StatusOk {
-		error = self.connection.error();
+		error = self.connection.error()
 	}
 	return;
 }
@@ -394,7 +392,7 @@ func (self *Statement) clear() (error os.Error) {
 	if rc == StatusOk {
 		rc := C.sqlite3_clear_bindings(self.handle);
 		if rc == StatusOk {
-			return;
+			return
 		}
 	}
 	error = self.connection.error();
@@ -403,18 +401,14 @@ func (self *Statement) clear() (error os.Error) {
 
 /* === Cursor === */
 
-func (self *Cursor) MoreResults() bool
-{
-	return self.result;
-}
+func (self *Cursor) MoreResults() bool	{ return self.result }
 
 /*
 	Fetch another result. Once results are exhausted, the
 	the statement that produced them will be reset and
 	ready for another execution.
 */
-func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
-{
+func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 	if !self.result {
 		error = &InterfaceError{"FetchOne: No results to fetch!"};
 		return;
@@ -437,7 +431,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 
 	if rc != StatusDone && rc != StatusRow {
 		// presumably any other outcome is an error
-		error = self.connection.error();
+		error = self.connection.error()
 	}
 
 	if rc == StatusDone {
@@ -454,7 +448,7 @@ func (self *Cursor) FetchOne() (data []interface {}, error os.Error)
 	all, an error will be returned; otherwise it probably
 	still occurred but will be hidden.
 */
-func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error) {
+func (self *Cursor) FetchMany(count int) (data [][]interface{}, error os.Error) {
 	d := make([][]interface{}, count);
 	l := 0;
 	var e os.Error;
@@ -463,10 +457,9 @@ func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error)
 	for l < count {
 		d[l], e = self.FetchOne();
 		if e == nil {
-			l += 1;
-		}
-		else {
-			break;
+			l += 1
+		} else {
+			break
 		}
 	}
 
@@ -476,32 +469,29 @@ func (self *Cursor) FetchMany(count int) (data [][]interface {}, error os.Error)
 			// but fewer than expected, need fresh copy
 			data = make([][]interface{}, l);
 			for i := 0; i < l; i++ {
-				data[i] = d[i];
+				data[i] = d[i]
 			}
+		} else {
+			data = d
 		}
-		else {
-			data = d;
-		}
-	}
-	else {
+	} else {
 		// no results at all, return the error
-		error = e;
+		error = e
 	}
 
 	return;
 }
 
-func (self *Cursor) FetchAll() (data [][]interface {}, error os.Error)
-{
+func (self *Cursor) FetchAll() (data [][]interface{}, error os.Error) {
 	var v vector.Vector;
-	var d interface{};
+	var d interface{}
 	var e os.Error;
 
 	// grab results until error
 	for {
 		d, e = self.FetchOne();
 		if e != nil {
-			break;
+			break
 		}
 		v.Push(d);
 	}
@@ -512,25 +502,23 @@ func (self *Cursor) FetchAll() (data [][]interface {}, error os.Error)
 		// TODO: how can this be done better?
 		data = make([][]interface{}, l);
 		for i := 0; i < l; i++ {
-			data[i] = v.At(i).([]interface{});
+			data[i] = v.At(i).([]interface{})
 		}
-	}
-	else {
+	} else {
 		// no results at all, return the error
-		error = e;
+		error = e
 	}
 
 	return;
 }
 
-func (self *Cursor) Close() os.Error
-{
+func (self *Cursor) Close() os.Error {
 	/*
 		Hmmm... There's really nothing to do since
 		we want the statement to stay around. Should
 		we reset it here?
 	*/
-	return nil;
+	return nil
 }
 
 /*
