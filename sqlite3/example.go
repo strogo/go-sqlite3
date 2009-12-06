@@ -91,6 +91,19 @@ func main() {
 		fmt.Printf("error: %s\n", e.String());
 	}
 
+	fmt.Printf("About to re-execute query\n");
+	ch, e := c.Iterate(s, "somepassword");
+	if e != nil {
+		fmt.Printf("error: %s\n", e.String());
+	}
+	fmt.Printf("channel: %s\n", ch);
+
+	fmt.Printf("About to fetch all using for range\n");
+	for r := range ch {
+		fmt.Printf("data: %s\n", r.Data);
+		fmt.Printf("error: %s\n", r.Error);
+	}
+
 	fmt.Printf("About to close statement\n");
 	e = s.Close();
 	if e != nil {

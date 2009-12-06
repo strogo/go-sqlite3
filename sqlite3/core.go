@@ -342,6 +342,34 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 	return;
 }
 
+func iterate(cursor db.Cursor, channel chan<- db.Result) {
+	var err os.Error;
+	var data []interface{};
+	var res db.Result;
+
+	for cursor.MoreResults() {
+		data, err = cursor.FetchOne();
+		res.Data = data;
+		res.Error = err;
+		channel <- res;
+	}
+
+	cursor.Close();
+	close(channel);
+}
+
+func (self *Connection) Iterate(statement db.Statement, parameters ...) (channel <-chan db.Result, error os.Error) {
+	ch := make(chan db.Result);
+
+	cur, error := self.Execute(statement, parameters);
+	if error != nil { return }
+
+	go iterate(cur, ch);
+
+	channel = ch;
+	return;
+}
+
 func (self *Connection) Close() (error os.Error) {
 	/* TODO */
 	rc := C.sqlite3_close(self.handle);
