@@ -239,7 +239,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 
 	/* -1: process q until 0 byte, nil: don't return tail pointer */
 	/* TODO: may need tail to process statement sequence? */
-	rc := C.sqlite3_prepare(self.handle, q, -1, &s.handle, nil);
+	rc := C.sqlite3_prepare_v2(self.handle, q, -1, &s.handle, nil);
 
 	if rc != StatusOk {
 		error = self.error();
@@ -378,6 +378,11 @@ func (self *Connection) Close() (error os.Error) {
 }
 
 /* === Statement === */
+
+func (self *Statement) String() string {
+	sql := C.sqlite3_sql(self.handle);
+	return C.GoString(sql);
+}
 
 func (self *Statement) Close() (error os.Error) {
 	rc := C.sqlite3_finalize(self.handle);
