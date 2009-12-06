@@ -6,21 +6,17 @@ package sqlite3
 
 import "fmt"
 
-// Error in the database binding itself, *not* the database
+// Error in the database driver itself, *not* the database
 // system we talk to.
 //
-// TODO: should be renamed to "BindingError" I guess? but
-// that could be confused with error while binding values
-// for queries; what a mess...
-//
 // TODO: this should really be explained in the generic API...
-type InterfaceError struct {
+type DriverError struct {
 	message string;
 }
 
 // Textual description of the error.
 // Implements os.Error interface.
-func (self InterfaceError) String() string	{ return self.message }
+func (self DriverError) String() string	{ return self.message }
 
 // Basic SQLite status codes as returned by almost
 // every SQLite operation. Note that SQLite calls

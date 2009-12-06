@@ -1,24 +1,46 @@
-/*
-	THIS IS NOT DONE AT ALL! USE AT YOUR OWN RISK!
+// Copyright 2009 Peter H. Froehlich. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
-	- it would be nice if cgo could grok several .go files,
-	so far it can't; so all the C interface stuff has to be
-	in one file; bummer that
-*/
-
+// SQLite database driver for Go.
+//
+// Concurrency:
+//
+// We still need to address concurrency issues in detail, for
+// now we simply force SQLite into "serialized" threading mode
+// (see http://www.sqlite.org/threadsafe.html for details).
+//
+// XXX: it would be nice if cgo could grok several .go files,
+// so far it can't; so all the C interface stuff has to be
+// in one file; bummer that; an alternative would be to move
+// all the high-level stuff out and keep a very low-level,
+// mostly procedural API here; hmm...
+//
+// TODO: rename to "sqlite" instead of "sqlite3"?
 package sqlite3
 
 /*
 #include <stdlib.h>
 #include <sqlite3.h>
+
+// needed since sqlite3_column_text() returns const unsigned char*
+// for some wack-a-doodle reason
 const char *wsq_column_text(sqlite3_stmt *statement, int column)
 {
 	return (const char *) sqlite3_column_text(statement, column);
 }
+
+// needed to work around the void(*)(void*) callback that is the
+// last argument to sqlite3_bind_text(); SQLITE_TRANSIENT forces
+// SQLite to make a private copy of the data
 int wsq_bind_text(sqlite3_stmt *statement, int i, const char* text, int n)
 {
 	return sqlite3_bind_text(statement, i, text, n, SQLITE_TRANSIENT);
 }
+
+// needed to work around the ... argument of sqlite3_config(); if
+// we ever require an option with parameters, we'll have to add more
+// wrappers
 int wsq_config(int option)
 {
 	return sqlite3_config(option);
@@ -34,25 +56,24 @@ import "strconv"
 import "container/vector"
 import "reflect"
 
-/*
-	These constants can be or'd together and passed as the
-	"sqlite3.flags" argument to Open(). Some of them only
-	apply if "sqlite3.vfs" is also passed. See the SQLite
-	documentation for details.
-*/
+// These constants can be or'd together and passed as the
+// "sqlite3.flags" argument to Open(). Some of them only
+// apply if "sqlite3.vfs" is also passed. See the SQLite
+// documentation for details. Note that we always force
+// OpenFullMutex, so passing OpenNoMutex has no effect.
 const (
 	OpenReadOnly		= 0x00000001;
 	OpenReadWrite		= 0x00000002;
 	OpenCreate		= 0x00000004;
-	OpenDeleteOnClose	= 0x00000008;	/* VFS only */
-	OpenExclusive		= 0x00000010;	/* VFS only */
-	OpenMainDb		= 0x00000100;	/* VFS only */
-	OpenTempDb		= 0x00000200;	/* VFS only */
-	OpenTransientDb		= 0x00000400;	/* VFS only */
-	OpenMainJournal		= 0x00000800;	/* VFS only */
-	OpenTempJournal		= 0x00001000;	/* VFS only */
-	OpenSubJournal		= 0x00002000;	/* VFS only */
-	OpenMasterJournal	= 0x00004000;	/* VFS only */
+	OpenDeleteOnClose	= 0x00000008;	// VFS only
+	OpenExclusive		= 0x00000010;	// VFS only
+	OpenMainDb		= 0x00000100;	// VFS only
+	OpenTempDb		= 0x00000200;	// VFS only
+	OpenTransientDb		= 0x00000400;	// VFS only
+	OpenMainJournal		= 0x00000800;	// VFS only
+	OpenTempJournal		= 0x00001000;	// VFS only
+	OpenSubJournal		= 0x00002000;	// VFS only
+	OpenMasterJournal	= 0x00004000;	// VFS only
 	OpenNoMutex		= 0x00008000;
 	OpenFullMutex		= 0x00010000;
 	OpenSharedCache		= 0x00020000;
@@ -81,34 +102,31 @@ const (
 	configGetPCache;
 )
 
-/* after we run into a lock, we'll retry for this long */
+// after we run into a locked database/table,
+// we'll retry for this long
 const defaultTimeoutMilliseconds = 16 * 1000
 
-/* SQLite connections */
+// SQLite connections
 type Connection struct {
-	/* pointer to struct sqlite3 */
 	handle *C.sqlite3;
 }
 
-/* SQLite statements */
+// SQLite statements
 type Statement struct {
-	/* pointer to struct sqlite3_stmt */
-	handle	*C.sqlite3_stmt;
-	/* connection we were created on */
+	handle		*C.sqlite3_stmt;
 	connection	*Connection;
 }
 
-/* SQLite cursors, will be renamed/refactored soon */
+// SQLite cursors, will be renamed/refactored soon
 type Cursor struct {
-	/* statement we were created for */
 	statement	*Statement;
-	/* connection we were created on */
 	connection	*Connection;
-	/* the last query yielded results */
-	result	bool;
+	result		bool;	// still have results left
 }
 
+// SQLite version information
 var Version db.VersionSignature
+// SQLite connection factory
 var Open db.OpenSignature
 
 func init() {
@@ -119,7 +137,7 @@ func init() {
 	// but let's make sure...
 	rc := C.wsq_config(configSerialized);
 	if rc != StatusOk {
-		panic("sqlite3 fatal error: can't switch to serialized mode");
+		panic("db/sqlite3 fatal error: can't switch to serialized mode")
 	}
 }
 
@@ -133,7 +151,7 @@ func version() (data map[string]string, error os.Error) {
 
 	cp := C.sqlite3_libversion();
 	if cp == nil {
-		error = &InterfaceError{"Version: couldn't get library version!"};
+		error = &DriverError{"Version: couldn't get library version!"};
 		return;
 	}
 	data["version"] = C.GoString(cp);
@@ -166,12 +184,12 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 
 	any, ok = info["name"];
 	if !ok {
-		error = &InterfaceError{"Open: No \"name\" in arguments map."};
+		error = &DriverError{"Open: No \"name\" in arguments map."};
 		return;
 	}
 	name, ok = any.(string);
 	if !ok {
-		error = &InterfaceError{"Open: \"name\" argument not a string."};
+		error = &DriverError{"Open: \"name\" argument not a string."};
 		return;
 	}
 
@@ -179,7 +197,7 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 	if ok {
 		flags, ok = any.(int);
 		if !ok {
-			error = &InterfaceError{"Open: \"flags\" argument not an int."};
+			error = &DriverError{"Open: \"flags\" argument not an int."};
 			return;
 		}
 	}
@@ -189,7 +207,7 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 		vfs = new(string);
 		*vfs, ok = any.(string);
 		if !ok {
-			error = &InterfaceError{"Open: \"vfs\" argument not a string."};
+			error = &DriverError{"Open: \"vfs\" argument not a string."};
 			return;
 		}
 	}
@@ -328,14 +346,14 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {
-		error = &InterfaceError{"Execute: Not an sqlite3 statement!"};
+		error = &DriverError{"Execute: Not an sqlite3 statement!"};
 		return;
 	}
 
 	p := reflect.NewValue(parameters).(*reflect.StructValue);
 
 	if p.NumField() != int(C.sqlite3_bind_parameter_count(s.handle)) {
-		error = &InterfaceError{"Execute: Number of parameters doesn't match!"};
+		error = &DriverError{"Execute: Number of parameters doesn't match!"};
 		return;
 	}
 
@@ -452,14 +470,14 @@ func (self *Cursor) MoreResults() bool	{ return self.result }
 */
 func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 	if !self.result {
-		error = &InterfaceError{"FetchOne: No results to fetch!"};
+		error = &DriverError{"FetchOne: No results to fetch!"};
 		return;
 	}
 
 	// assemble results from current row
 	nColumns := int(C.sqlite3_column_count(self.statement.handle));
 	if nColumns <= 0 {
-		error = &InterfaceError{"FetchOne: No columns in result!"};
+		error = &DriverError{"FetchOne: No columns in result!"};
 		return;
 	}
 	data = make([]interface{}, nColumns);
@@ -566,13 +584,13 @@ func (self *Cursor) Close() os.Error {
 /*
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
-		error = &InterfaceError{"FetchRow: No results to fetch!"};
+		error = &DriverError{"FetchRow: No results to fetch!"};
 		return;
 	}
 
 	nColumns := int(C.sqlite3_column_count(self.handle));
 	if nColumns <= 0 {
-		error = &InterfaceError{"FetchRow: No columns in result!"};
+		error = &DriverError{"FetchRow: No columns in result!"};
 		return;
 	}
 
