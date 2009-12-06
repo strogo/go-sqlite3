@@ -19,6 +19,10 @@ int wsq_bind_text(sqlite3_stmt *statement, int i, const char* text, int n)
 {
 	return sqlite3_bind_text(statement, i, text, n, SQLITE_TRANSIENT);
 }
+int wsq_config(int option)
+{
+	return sqlite3_config(option);
+}
 */
 import "C"
 import "unsafe"
@@ -55,6 +59,28 @@ const (
 	OpenPrivateCache	= 0x00040000;
 )
 
+// Constants for sqlite3_config() used only internally.
+// In fact only *one* is used. See SQLite documentation
+// for details.
+const (
+	_	= iota;
+	configSingleThread;
+	configMultiThread;
+	configSerialized;
+	configMalloc;
+	configGetMalloc;
+	configScratch;
+	configPageCache;
+	configHeap;
+	configMemStatus;
+	configMutex;
+	configGetMutex;
+	_;
+	configLookAside;
+	configPCache;
+	configGetPCache;
+)
+
 /* after we run into a lock, we'll retry for this long */
 const defaultTimeoutMilliseconds = 16 * 1000
 
@@ -82,13 +108,19 @@ type Cursor struct {
 	result	bool;
 }
 
-/* idiom to ensure that signatures are exactly as specified in db */
 var Version db.VersionSignature
 var Open db.OpenSignature
 
 func init() {
 	Version = version;
 	Open = open;
+
+	// Supposedly serialized mode is the default,
+	// but let's make sure...
+	rc := C.wsq_config(configSerialized);
+	if rc != StatusOk {
+		panic("sqlite3 fatal error: can't switch to serialized mode");
+	}
 }
 
 /*
@@ -171,6 +203,11 @@ func open(info ConnectionInfo) (connection db.Connection, error os.Error) {
 	if error != nil {
 		return
 	}
+
+	// We want all connections to be in serialized threading
+	// mode, so we fiddle with the flags to make sure.
+	flags &^= OpenNoMutex;
+	flags |= OpenFullMutex;
 
 	conn := new(Connection);
 
