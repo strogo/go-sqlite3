@@ -4,13 +4,20 @@
 
 // SQLite database driver for Go.
 //
+// Restrictions on Types:
+//
+// For now, we treat *all* values as strings. This is less of
+// an issue for SQLite since it's typed dynamically anyway.
+// But accepting/returning the appropriate Go type is high on
+// the list of planned features.
+//
 // Binding Query Parameters:
 //
-// We only support the simply "?" parameter slots in queries.
-// SQLite has many more variations, but supporting them all
-// would complicate the API immensly for very little gain.
-// The parameter slots are matched to the arguments given in
-// Execute() in order of appearance.
+// SQL queries can contain "?" parameter slots that are bound
+// to values in Execute(). SQLite has more variations that we
+// don't support for now: they would make the API more complex
+// for very little gain. Parameter slots are matched to values
+// in order of appearance.
 //
 // Concurrency:
 //
@@ -23,6 +30,7 @@
 // in one file; bummer that; an alternative would be to move
 // all the high-level stuff out and keep a very low-level,
 // mostly procedural API here; hmm...
+// see http://code.google.com/p/go/issues/detail?id=342
 //
 // TODO: rename to "sqlite" instead of "sqlite3"?
 package sqlite3
