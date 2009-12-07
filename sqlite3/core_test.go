@@ -6,11 +6,14 @@ package sqlite3
 
 import "testing"
 import "os"
+import "db"
 
 const (
 	impossibleName = "randomassdatabase.db";
 	testName = "testing.db";
 )
+
+// Version()
 
 type versionTest struct {
 	key		string;
@@ -40,6 +43,8 @@ func TestVersion(t *testing.T) {
 		}
 	}
 }
+
+// Open()
 
 func openNonexisting(t *testing.T) {
 	c, e := Open(ConnectionInfo{"name": impossibleName});
@@ -73,7 +78,55 @@ func TestOpen(t *testing.T) {
 	openExisting(t);
 }
 
-// just to clean up and remove the database
+// ExecuteDirectly(): tests Prepare() and Execute() in turn
+// sets up the database for further tests
+
+type insertTest struct {
+	login string;
+	password string;
+}
+
+var insertTests = []insertTest{
+	insertTest{"phf", "somepassword"},
+	insertTest{"adt", "somepassword"},
+	insertTest{"xyz", "asdfa"},
+	insertTest{"abc", "sdfdsdfasdfsdafasdfasdafsdfasd"},
+};
+
+func TestCreate(t *testing.T) {
+	c, e := Open(ConnectionInfo{"name": testName, "sqlite3.flags": OpenReadWrite});
+	if (e != nil) {
+		t.Fatal("Failed to open existing database");
+	}
+
+	_, e = db.ExecuteDirectly(c,
+		"CREATE TABLE Users("
+			"login VARCHAR NOT NULL UNIQUE,"
+			"password VARCHAR NOT NULL,"
+			"active BOOLEAN NOT NULL DEFAULT 0,"
+			"last TIMESTAMP,"
+			"PRIMARY KEY (login)"
+		")"
+	);
+	if (e != nil) {
+		t.Fatal("Failed to create table");
+	}
+
+	for _, k := range insertTests {
+		_, e = db.ExecuteDirectly(c,
+			"INSERT INTO Users (login, password)"
+			"VALUES (?, ?);", k.login, k.password
+		);
+		if (e != nil) {
+			t.Fatal("Failed to insert");
+		}
+	}
+
+	c.Close();
+}
+
+// clean up: remove the test database
+
 func TestDummy(t *testing.T) {
 	os.Remove(testName);
 }
