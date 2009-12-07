@@ -4,6 +4,14 @@
 
 // SQLite database driver for Go.
 //
+// Binding Query Parameters:
+//
+// We only support the simply "?" parameter slots in queries.
+// SQLite has many more variations, but supporting them all
+// would complicate the API immensly for very little gain.
+// The parameter slots are matched to the arguments given in
+// Execute() in order of appearance.
+//
 // Concurrency:
 //
 // We still need to address concurrency issues in detail, for
