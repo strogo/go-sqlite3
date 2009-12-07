@@ -201,7 +201,7 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 		return;
 	}
 
-	any, ok = info["sqlite.flags"];
+	any, ok = info["sqlite3.flags"];
 	if ok {
 		flags, ok = any.(int);
 		if !ok {
@@ -210,7 +210,7 @@ func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, er
 		}
 	}
 
-	any, ok = info["sqlite.vfs"];
+	any, ok = info["sqlite3.vfs"];
 	if ok {
 		vfs = new(string);
 		*vfs, ok = any.(string);
