@@ -409,15 +409,28 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 	return;
 }
 
+type Result struct {
+	data []interface{};
+	error os.Error;
+}
+
+func (self *Result) Data() []interface{} {
+	return self.data;
+}
+
+func (self *Result) Error() os.Error {
+	return self.error;
+}
+
 func iterate(cursor db.Cursor, channel chan<- db.Result) {
 	var err os.Error;
 	var data []interface{}
-	var res db.Result;
+	var res *Result = new(Result);
 
 	for cursor.MoreResults() {
 		data, err = cursor.FetchOne();
-		res.Data = data;
-		res.Error = err;
+		res.data = data;
+		res.error = err;
 		channel <- res;
 	}
 

@@ -100,8 +100,8 @@ func main() {
 
 	fmt.Printf("About to fetch all using for range\n");
 	for r := range ch {
-		fmt.Printf("data: %s\n", r.Data);
-		fmt.Printf("error: %s\n", r.Error);
+		fmt.Printf("data: %s\n", r.Data());
+		fmt.Printf("error: %s\n", r.Error());
 	}
 
 	fmt.Printf("About to close statement\n");
