@@ -461,6 +461,17 @@ func (self *Connection) Close() (error os.Error) {
 	return;
 }
 
+func (self *Connection) Changes() (changes int, error os.Error) {
+	changes = int(C.sqlite3_changes(self.handle));
+	return;
+}
+
+func (self *Connection) LastId() (id int, error os.Error) {
+	// TODO: really returns sqlite3_int64, what to do?
+	id = int(C.sqlite3_last_insert_rowid(self.handle));
+	return;
+}
+
 /* === Statement === */
 
 func (self *Statement) String() string {
