@@ -208,7 +208,7 @@ func parseOptions(str string) (options map[string]string) {
 func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Error) {
 	url, error := http.ParseURL(str);
 	if error != nil {
-		return; // XXX really return error from ParseURL?
+		return	// XXX really return error from ParseURL?
 	}
 
 	if len(url.Scheme) > 0 {
@@ -221,16 +221,15 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 	if len(url.Path) == 0 {
 		error = &DriverError{"Open: no path or database name"};
 		return;
-	}
-	else {
-		name = url.Path;
+	} else {
+		name = url.Path
 	}
 
 	if len(url.RawQuery) > 0 {
 		options := parseOptions(url.RawQuery);
 		rflags, ok := options["flags"];
 		if ok {
-			flags, _ = strconv.Atoi(rflags); // XXX check error
+			flags, _ = strconv.Atoi(rflags)	// XXX check error
 		}
 		rvfs, ok := options["vfs"];
 		if ok {
@@ -420,17 +419,13 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 }
 
 type Result struct {
-	data []interface{};
-	error os.Error;
+	data	[]interface{};
+	error	os.Error;
 }
 
-func (self *Result) Data() []interface{} {
-	return self.data;
-}
+func (self *Result) Data() []interface{}	{ return self.data }
 
-func (self *Result) Error() os.Error {
-	return self.error;
-}
+func (self *Result) Error() os.Error	{ return self.error }
 
 func iterate(cursor db.Cursor, channel chan<- db.Result) {
 	var err os.Error;
