@@ -363,7 +363,7 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 //
 // TODO: Figure out parameter stuff, right now all are
 // TEXT parameters. :-/
-func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
+func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {
 		error = &DriverError{"Execute: Not an sqlite3 statement!"};
@@ -438,10 +438,10 @@ func iterate(cursor db.Cursor, channel chan<- db.Result) {
 	close(channel);
 }
 
-func (self *Connection) Iterate(statement db.Statement, parameters ...) (channel <-chan db.Result, error os.Error) {
+func (self *Connection) Execute(statement db.Statement, parameters ...) (channel <-chan db.Result, error os.Error) {
 	ch := make(chan db.Result);
 
-	cur, error := self.Execute(statement, parameters);
+	cur, error := self.ExecuteClassic(statement, parameters);
 	if error != nil {
 		return
 	}

@@ -15,11 +15,12 @@ func main() {
 	}
 
 	fmt.Printf("About to connect\n");
-	c, e := sqlite3.Open("test.db");
+	nsc, e := sqlite3.Open("test.db");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())
 	}
-	fmt.Printf("connection: %s\n", c);
+	fmt.Printf("connection: %s\n", nsc);
+	c := nsc.(db.ClassicConnection);
 
 	fmt.Printf("About to prepare statement\n");
 	s, e := c.Prepare("SELECT rowid, * FROM users WHERE password=?");
@@ -29,7 +30,7 @@ func main() {
 	fmt.Printf("statement: %s\n", s);
 
 	fmt.Printf("About to execute query\n");
-	cc, e := c.Execute(s, "somepassword");
+	cc, e := c.ExecuteClassic(s, "somepassword");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())
 	}
@@ -50,7 +51,7 @@ func main() {
 	}
 
 	fmt.Printf("About to re-execute query\n");
-	cc, e = c.Execute(s, "somepassword");
+	cc, e = c.ExecuteClassic(s, "somepassword");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())
 	}
@@ -90,7 +91,7 @@ func main() {
 	}
 
 	fmt.Printf("About to re-execute query\n");
-	ch, e := c.Iterate(s, "somepassword");
+	ch, e := c.Execute(s, "somepassword");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())
 	}
