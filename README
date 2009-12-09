@@ -11,3 +11,5 @@ pkg/db/sqlite
 These are in flux constantly, don't rely on them
 yet. Discussions regarding the generic API happen
 mostly on golang-nuts@googlegroups.com for now.
+
+Special thanks to Eden Li and Masaaki Yonebayashi.
