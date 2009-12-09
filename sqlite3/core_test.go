@@ -56,7 +56,7 @@ func openNonexisting(t *testing.T) {
 	}
 }
 func openCreate(t *testing.T) {
-	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenCreate));
+	c, e := Open(testName+"?"+FlagsURL(OpenCreate));
 	if (e != nil) {
 		fmt.Println(e);
 		t.Error("Failed to create database");
@@ -66,7 +66,7 @@ func openCreate(t *testing.T) {
 	}
 }
 func openExisting(t *testing.T) {
-	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenReadOnly));
+	c, e := Open(testName+"?"+FlagsURL(OpenReadOnly));
 	if (e != nil) {
 		fmt.Println(e);
 		t.Error("Failed to open existing database");
@@ -98,7 +98,7 @@ var insertTests = []insertTest{
 };
 
 func TestCreate(t *testing.T) {
-	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenReadWrite));
+	c, e := Open(testName+"?"+FlagsURL(OpenReadWrite));
 	if (e != nil) {
 		t.Fatal("Failed to open existing database");
 	}

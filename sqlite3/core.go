@@ -4,12 +4,16 @@
 
 // SQLite database driver for Go.
 //
+// Please see http://www.sqlite.org/c3ref/intro.html for all
+// the missing details. Sorry, our documentation is focused
+// on driver details, not on SQLite in general.
+//
 // Restrictions on Types:
 //
 // For now, we treat *all* values as strings. This is less of
 // an issue for SQLite since it's typed dynamically anyway.
-// But accepting/returning the appropriate Go type is high on
-// the list of planned features.
+// Accepting/returning appropriate Go types is a high priority
+// goal though.
 //
 // Binding Query Parameters:
 //
@@ -37,11 +41,15 @@ package sqlite3
 #include <stdlib.h>
 #include <sqlite3.h>
 
-// needed since sqlite3_column_text() returns const unsigned char*
-// for some wack-a-doodle reason
+// needed since sqlite3_column_text() and sqlite3_column_name()
+// return const unsigned char* for some wack-a-doodle reason
 const char *wsq_column_text(sqlite3_stmt *statement, int column)
 {
 	return (const char *) sqlite3_column_text(statement, column);
+}
+const char *wsq_column_name(sqlite3_stmt *statement, int column)
+{
+        return (const char *) sqlite3_column_name(statement, column);
 }
 
 // needed to work around the void(*)(void*) callback that is the
@@ -61,23 +69,23 @@ int wsq_config(int option)
 }
 */
 import "C"
-import "unsafe"
 
-import "db"
-
-import "os"
-import "strconv"
-import "container/vector"
-import "reflect"
-
-import "fmt"
-import "http"
+import (
+	"container/vector";
+	"db"; // generic database API
+	"fmt";
+	"http";
+	"os";
+	"reflect";
+	"strconv";
+	"unsafe";
+)
 
 // These constants can be or'd together and passed as the
-// "sqlite3.flags" argument to Open(). Some of them only
-// apply if "sqlite3.vfs" is also passed. See the SQLite
-// documentation for details. Note that we always force
-// OpenFullMutex, so passing OpenNoMutex has no effect.
+// "flags" option to Open(). Some of them only apply if
+// the "vfs" option is also passed. See SQLite documentation
+// for details. Note that we always force OpenFullMutex,
+// so passing OpenNoMutex has no effect. See also FlagURL().
 const (
 	OpenReadOnly		= 0x00000001;
 	OpenReadWrite		= 0x00000002;
@@ -147,6 +155,8 @@ var Version db.VersionSignature
 var Open db.OpenSignature
 
 func init() {
+	// Idiom to ensure that we actually conform
+	// to the database API for functions as well.
 	Version = version;
 	Open = open;
 
@@ -158,11 +168,9 @@ func init() {
 	}
 }
 
-/*
-	The SQLite database interface returns keys "version",
-	"sqlite3.sourceid", and "sqlite3.versionnumber"; the
-	latter are specific to SQLite.
-*/
+// The SQLite database interface returns keys "version",
+// "sqlite3.sourceid", and "sqlite3.versionnumber"; the
+// latter are specific to SQLite.
 func version() (data map[string]string, error os.Error) {
 	data = make(map[string]string);
 
@@ -177,11 +185,8 @@ func version() (data map[string]string, error os.Error) {
 	i := C.sqlite3_libversion_number();
 	data["sqlite3.versionnumber"] = strconv.Itob(int(i), 10);
 
-	/*
-		Debian's SQLite 3.5.9 has no sqlite3_sourceid,
-		still need to find the correct version to cut
-		off on.
-	*/
+	// Debian's SQLite 3.5.9 has no sqlite3_sourceid.
+	// TODO: find out exact version to cut off on...
 	if i > 3005009 {
 		cp = C.sqlite3_sourceid();
 		if cp != nil {
@@ -286,10 +291,8 @@ func open(url string) (connection db.Connection, error os.Error) {
 
 /* === Connection === */
 
-/*
-	Fill in a DatabaseError with information about
-	the last error from SQLite.
-*/
+// Fill in a DatabaseError with information about
+// the last error from SQLite.
 func (self *Connection) error() (error os.Error) {
 	e := new(DatabaseError);
 	/*
@@ -305,9 +308,7 @@ func (self *Connection) error() (error os.Error) {
 	return e;
 }
 
-/*
-	Precompile query into Statement.
-*/
+// Precompile query into Statement.
 func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error) {
 	q := C.CString(query);
 	s := new(Statement);
@@ -356,14 +357,12 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 	return;
 }
 
-/*
-	Execute precompiled statement with given parameters
-	(if any). The statement stays valid even if we fail
-	to execute with given parameters.
-
-	TODO: Figure out parameter stuff, right now all are
-	TEXT parameters. :-/
-*/
+// Execute precompiled statement with given parameters
+// (if any). The statement stays valid even if we fail
+// to execute with given parameters.
+//
+// TODO: Figure out parameter stuff, right now all are
+// TEXT parameters. :-/
 func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {
@@ -395,19 +394,19 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (cursor 
 	rc := C.sqlite3_step(s.handle);
 
 	if rc != StatusDone && rc != StatusRow {
-		/* presumably any other outcome is an error */
+		// presumably any other outcome is an error
 		error = self.error()
 	}
 
 	if rc == StatusRow {
-		/* statement is producing results, need a cursor */
+		// statement is producing results, need a cursor
 		c := new(Cursor);
 		c.statement = s;
 		c.connection = self;
 		c.result = true;
 		cursor = c;
 	} else {
-		/* clean up after error or done */
+		// clean up after error or done
 		s.clear()
 	}
 
@@ -454,7 +453,7 @@ func (self *Connection) Iterate(statement db.Statement, parameters ...) (channel
 }
 
 func (self *Connection) Close() (error os.Error) {
-	/* TODO */
+	// TODO
 	rc := C.sqlite3_close(self.handle);
 	if rc != StatusOk {
 		error = self.error()
@@ -493,11 +492,9 @@ func (self *Statement) clear() (error os.Error) {
 
 func (self *Cursor) MoreResults() bool	{ return self.result }
 
-/*
-	Fetch another result. Once results are exhausted, the
-	the statement that produced them will be reset and
-	ready for another execution.
-*/
+// Fetch another result. Once results are exhausted, the
+// the statement that produced them will be reset and
+// ready for another execution.
 func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 	if !self.result {
 		error = &DriverError{"FetchOne: No results to fetch!"};
@@ -533,11 +530,9 @@ func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
 	return;
 }
 
-/*
-	Fetch at most count results. If we get no results at
-	all, an error will be returned; otherwise it probably
-	still occurred but will be hidden.
-*/
+// Fetch at most count results. If we get no results at
+// all, an error will be returned; otherwise it probably
+// still occurred but will be hidden.
 func (self *Cursor) FetchMany(count int) (data [][]interface{}, error os.Error) {
 	d := make([][]interface{}, count);
 	l := 0;
@@ -602,23 +597,13 @@ func (self *Cursor) FetchAll() (data [][]interface{}, error os.Error) {
 	return;
 }
 
-func (self *Cursor) Close() os.Error {
-	/*
-		Hmmm... There's really nothing to do since
-		we want the statement to stay around. Should
-		we reset it here?
-	*/
-	return nil
-}
-
-/*
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
 		error = &DriverError{"FetchRow: No results to fetch!"};
 		return;
 	}
 
-	nColumns := int(C.sqlite3_column_count(self.handle));
+	nColumns := int(C.sqlite3_column_count(self.statement.handle));
 	if nColumns <= 0 {
 		error = &DriverError{"FetchRow: No columns in result!"};
 		return;
@@ -626,12 +611,12 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	data = make(map[string]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
-		text := C.sqlite3_column_text(self.handle, C.int(i));
-		name := C.sqlite3_column_name(self.handle, C.int(i));
+		text := C.wsq_column_text(self.statement.handle, C.int(i));
+		name := C.wsq_column_name(self.statement.handle, C.int(i));
 		data[C.GoString(name)] = C.GoString(text);
 	}
 
-	rc := C.sqlite3_step(self.handle);
+	rc := C.sqlite3_step(self.statement.handle);
 	switch rc {
 		case StatusDone:
 			self.result = false;
@@ -646,4 +631,19 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	return;
 }
-*/
+
+func (self *Cursor) Close() os.Error {
+	// Hmmm... There's really nothing to do since
+	// we want the statement to stay around. Should
+	// we reset it here?
+	return nil
+}
+
+// FlagsURL() is a helper to turn the various OpenXYZ option
+// flags into the "flags=123456789" notation required for
+// the URL passed to Open(). It's a shame that we have to
+// go from int to string and back to int, but thus is the
+// price of generality.
+func FlagsURL(options int) string {
+	return fmt.Sprintf("flags=%d", options);
+}
