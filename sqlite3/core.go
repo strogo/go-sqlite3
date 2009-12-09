@@ -220,10 +220,10 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 	}
 
 	if len(url.RawQuery) > 0 {
-		options := db.ParseQueryURL(url.RawQuery);
-		if options == nil {
-			error = &DriverError{"Open: error in URL options (the ? part)"};
-			return;
+		options, e := db.ParseQueryURL(url.RawQuery);
+		if e != nil {
+			error = e;
+			return	// XXX really return error from ParseQueryURL?
 		}
 		rflags, ok := options["flags"];
 		if ok {
