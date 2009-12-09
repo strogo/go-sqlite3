@@ -14,10 +14,8 @@ func main() {
 		fmt.Printf("version[%s] == %s\n", k, v);
 	}
 
-	info := sqlite3.ConnectionInfo{"name": "test.db"};
-
 	fmt.Printf("About to connect\n");
-	c, e := sqlite3.Open(info);
+	c, e := sqlite3.Open("test.db");
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String());
 	}

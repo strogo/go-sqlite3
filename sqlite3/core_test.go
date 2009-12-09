@@ -7,6 +7,7 @@ package sqlite3
 import "testing"
 import "os"
 import "db"
+import "fmt"
 
 const (
 	impossibleName = "randomassdatabase.db";
@@ -47,15 +48,17 @@ func TestVersion(t *testing.T) {
 // Open()
 
 func openNonexisting(t *testing.T) {
-	c, e := Open(ConnectionInfo{"name": impossibleName});
+	c, e := Open(impossibleName);
 	if (e == nil) {
+		fmt.Println(e);
 		t.Error("Opened non-existing database");
 		c.Close();
 	}
 }
 func openCreate(t *testing.T) {
-	c, e := Open(ConnectionInfo{"name": testName, "sqlite3.flags": OpenCreate});
+	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenCreate));
 	if (e != nil) {
+		fmt.Println(e);
 		t.Error("Failed to create database");
 	}
 	else {
@@ -63,8 +66,9 @@ func openCreate(t *testing.T) {
 	}
 }
 func openExisting(t *testing.T) {
-	c, e := Open(ConnectionInfo{"name": testName, "sqlite3.flags": OpenReadOnly});
+	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenReadOnly));
 	if (e != nil) {
+		fmt.Println(e);
 		t.Error("Failed to open existing database");
 	}
 	else {
@@ -94,7 +98,7 @@ var insertTests = []insertTest{
 };
 
 func TestCreate(t *testing.T) {
-	c, e := Open(ConnectionInfo{"name": testName, "sqlite3.flags": OpenReadWrite});
+	c, e := Open(testName+"?flags="+fmt.Sprintf("%x", OpenReadWrite));
 	if (e != nil) {
 		t.Fatal("Failed to open existing database");
 	}

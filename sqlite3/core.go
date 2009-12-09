@@ -72,6 +72,10 @@ import "strconv"
 import "container/vector"
 import "reflect"
 
+import "fmt"
+import "http"
+import "strings"
+
 // These constants can be or'd together and passed as the
 // "sqlite3.flags" argument to Open(). Some of them only
 // apply if "sqlite3.vfs" is also passed. See the SQLite
@@ -191,49 +195,55 @@ func version() (data map[string]string, error os.Error) {
 	return;
 }
 
-type Any interface{}
-type ConnectionInfo map[string]Any
-
-func parseConnInfo(info ConnectionInfo) (name string, flags int, vfs *string, error os.Error) {
-	ok := false;
-	any := Any(nil);
-
-	any, ok = info["name"];
-	if !ok {
-		error = &DriverError{"Open: No \"name\" in arguments map."};
-		return;
+func parseOptions(str string) (options map[string]string) {
+	options = make(map[string]string);
+	pairs := strings.Split(str, ";", 0);
+	for _, p := range pairs {
+		pieces := strings.Split(p, "=", 0);
+		options[pieces[0]] = pieces[1];
 	}
-	name, ok = any.(string);
-	if !ok {
-		error = &DriverError{"Open: \"name\" argument not a string."};
-		return;
+	return;
+}
+
+func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Error) {
+	url, error := http.ParseURL(str);
+	if error != nil {
+		return; // XXX really return error from ParseURL?
 	}
 
-	any, ok = info["sqlite3.flags"];
-	if ok {
-		flags, ok = any.(int);
-		if !ok {
-			error = &DriverError{"Open: \"flags\" argument not an int."};
+	if len(url.Scheme) > 0 {
+		if url.Scheme != "sqlite3" {
+			error = &DriverError{fmt.Sprintf("Open: unknown scheme %s expected sqlite3", url.Scheme)};
 			return;
 		}
 	}
 
-	any, ok = info["sqlite3.vfs"];
-	if ok {
-		vfs = new(string);
-		*vfs, ok = any.(string);
-		if !ok {
-			error = &DriverError{"Open: \"vfs\" argument not a string."};
-			return;
+	if len(url.Path) == 0 {
+		error = &DriverError{"Open: no path or database name"};
+		return;
+	}
+	else {
+		name = url.Path;
+	}
+
+	if len(url.RawQuery) > 0 {
+		options := parseOptions(url.RawQuery);
+		rflags, ok := options["flags"];
+		if ok {
+			flags, _ = strconv.Atoi(rflags); // XXX check error
+		}
+		rvfs, ok := options["vfs"];
+		if ok {
+			vfs = new(string);
+			*vfs = rvfs;
 		}
 	}
 
 	return;
 }
 
-/* TODO: use URIs instead? http://golang.org/pkg/http/#URL */
-func open(info ConnectionInfo) (connection db.Connection, error os.Error) {
-	name, flags, vfs, error := parseConnInfo(info);
+func open(url string) (connection db.Connection, error os.Error) {
+	name, flags, vfs, error := parseConnInfo(url);
 	if error != nil {
 		return
 	}
