@@ -72,7 +72,7 @@ import "C"
 
 import (
 	"container/vector";
-	"db"; // generic database API
+	"db";	// generic database API
 	"fmt";
 	"http";
 	"os";
@@ -616,17 +616,18 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 		data[C.GoString(name)] = C.GoString(text);
 	}
 
+	// try to get another row
 	rc := C.sqlite3_step(self.statement.handle);
-	switch rc {
-		case StatusDone:
-			self.result = false;
-			// TODO: finalize
-		case StatusRow:
-			self.result = true;
-		default:
-			error = self.connection.error();
-			// TODO: finalize
-			return;
+
+	if rc != StatusDone && rc != StatusRow {
+		// presumably any other outcome is an error
+		error = self.connection.error()
+	}
+
+	if rc == StatusDone {
+		self.result = false;
+		// clean up when done
+		self.statement.clear();
 	}
 
 	return;
@@ -644,6 +645,4 @@ func (self *Cursor) Close() os.Error {
 // the URL passed to Open(). It's a shame that we have to
 // go from int to string and back to int, but thus is the
 // price of generality.
-func FlagsURL(options int) string {
-	return fmt.Sprintf("flags=%d", options);
-}
+func FlagsURL(options int) string	{ return fmt.Sprintf("flags=%d", options) }
