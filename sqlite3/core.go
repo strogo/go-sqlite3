@@ -31,8 +31,6 @@
 // all the high-level stuff out and keep a very low-level,
 // mostly procedural API here; hmm...
 // see http://code.google.com/p/go/issues/detail?id=342
-//
-// TODO: rename to "sqlite" instead of "sqlite3"?
 package sqlite3
 
 /*

@@ -4,7 +4,7 @@ pkg/db
 	Generic database API for Go that supports
 	multiple database systems.
 
-pkg/db/sqlite
+pkg/db/sqlite3
 	Database driver enabling access to SQLite
 	from Go.
 
