@@ -74,7 +74,6 @@ import "reflect"
 
 import "fmt"
 import "http"
-import "strings"
 
 // These constants can be or'd together and passed as the
 // "sqlite3.flags" argument to Open(). Some of them only
@@ -195,18 +194,10 @@ func version() (data map[string]string, error os.Error) {
 	return;
 }
 
-func parseOptions(str string) (options map[string]string) {
-	options = make(map[string]string);
-	pairs := strings.Split(str, ";", 0);
-	for _, p := range pairs {
-		pieces := strings.Split(p, "=", 0);
-		options[pieces[0]] = pieces[1];
-	}
-	return;
-}
-
 func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Error) {
-	url, error := http.ParseURL(str);
+	var url *http.URL;
+
+	url, error = http.ParseURL(str);
 	if error != nil {
 		return	// XXX really return error from ParseURL?
 	}
@@ -226,10 +217,17 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 	}
 
 	if len(url.RawQuery) > 0 {
-		options := parseOptions(url.RawQuery);
+		options := db.ParseQueryURL(url.RawQuery);
+		if options == nil {
+			error = &DriverError{"Open: error in URL options (the ? part)"};
+			return;
+		}
 		rflags, ok := options["flags"];
 		if ok {
-			flags, _ = strconv.Atoi(rflags)	// XXX check error
+			flags, error = strconv.Atoi(rflags);
+			if error != nil {
+				return	// XXX really return error from Atoi?
+			}
 		}
 		rvfs, ok := options["vfs"];
 		if ok {
