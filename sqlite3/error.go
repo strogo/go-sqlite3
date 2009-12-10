@@ -87,7 +87,7 @@ const (
 // Error in the database system we talk to.
 // SQLite has basic and extended status codes
 // in addition to textual messages.
-type DatabaseError struct {
+type SystemError struct {
 	message		string;
 	basic		int;
 	extended	int;
@@ -95,15 +95,15 @@ type DatabaseError struct {
 
 // Textual description of the error.
 // Implements os.Error interface.
-func (self DatabaseError) String() string {
+func (self SystemError) String() string {
 	return fmt.Sprintf("%s (%d:%d)", self.message, self.basic, self.extended)
 }
 
 // Basic SQLite status code. These are plain
 // integers.
-func (self DatabaseError) Basic() int	{ return self.basic }
+func (self SystemError) Basic() int	{ return self.basic }
 
 // Extended SQLite status code. These are OR'd
 // together from various bits and pieces on top
 // of basic status codes.
-func (self DatabaseError) Extended() int	{ return self.extended }
+func (self SystemError) Extended() int	{ return self.extended }

@@ -291,10 +291,10 @@ func open(url string) (connection db.Connection, error os.Error) {
 
 /* === Connection === */
 
-// Fill in a DatabaseError with information about
+// Fill in a SystemError with information about
 // the last error from SQLite.
 func (self *Connection) error() (error os.Error) {
-	e := new(DatabaseError);
+	e := new(SystemError);
 	/*
 		Debian's SQLite 3.5.9 has no sqlite3_extended_errcode.
 		It's not really needed anyway if we ask SQLite to use
