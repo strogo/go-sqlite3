@@ -164,7 +164,7 @@ func init() {
 	// but let's make sure...
 	rc := C.wsq_config(configSerialized);
 	if rc != StatusOk {
-		panic("db/sqlite3 fatal error: can't switch to serialized mode")
+		panic("sqlite3 fatal error: can't switch to serialized mode")
 	}
 }
 
@@ -289,19 +289,15 @@ func open(url string) (connection db.Connection, error os.Error) {
 	return;
 }
 
-/* === Connection === */
-
 // Fill in a SystemError with information about
 // the last error from SQLite.
 func (self *Connection) error() (error os.Error) {
 	e := new(SystemError);
-	/*
-		Debian's SQLite 3.5.9 has no sqlite3_extended_errcode.
-		It's not really needed anyway if we ask SQLite to use
-		extended codes for the normal sqlite3_errcode() call;
-		we just have to mask out high bits to turn them back
-		into basic errors. :-D
-	*/
+	// Debian's SQLite 3.5.9 has no sqlite3_extended_errcode.
+	// It's not really needed anyway if we ask SQLite to use
+	// extended codes for the normal sqlite3_errcode() call;
+	// we just have to mask out high bits to turn them back
+	// into basic errors. :-D
 	e.extended = int(C.sqlite3_errcode(self.handle));
 	e.basic = e.extended & 0xff;
 	e.message = C.GoString(C.sqlite3_errmsg(self.handle));
@@ -314,19 +310,17 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 	s := new(Statement);
 	s.connection = self;
 
-	/* -1: process q until 0 byte, nil: don't return tail pointer */
-	/* TODO: may need tail to process statement sequence? */
+	// -1: process q until 0 byte, nil: don't return tail pointer
+	// TODO: may need tail to process statement sequence?
 	rc := C.sqlite3_prepare_v2(self.handle, q, -1, &s.handle, nil);
 
 	if rc != StatusOk {
 		error = self.error();
-		/*
-			did we get a handle anyway? if so we need to
-			finalize it, but that could trigger another,
-			secondary error; for now we ignore that one;
-			note that we shouldn't get a handle if there
-			was an error, that's what the docs say...
-		*/
+		// did we get a handle anyway? if so we need to
+		// finalize it, but that could trigger another,
+		// secondary error; for now we ignore that one;
+		// note that we shouldn't get a handle if there
+		// was an error, that's what the docs say...
 		if s.handle != nil {
 			_ = C.sqlite3_finalize(s.handle)
 		}
@@ -472,8 +466,6 @@ func (self *Connection) LastId() (id int, error os.Error) {
 	return;
 }
 
-/* === Statement === */
-
 func (self *Statement) String() string {
 	sql := C.sqlite3_sql(self.handle);
 	return C.GoString(sql);
@@ -498,8 +490,6 @@ func (self *Statement) clear() (error os.Error) {
 	error = self.connection.error();
 	return;
 }
-
-/* === Cursor === */
 
 func (self *Cursor) MoreResults() bool	{ return self.result }
 
