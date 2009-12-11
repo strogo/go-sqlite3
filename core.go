@@ -243,7 +243,11 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 }
 
 func open(url string) (connection db.Connection, error os.Error) {
-	name, flags, vfs, error := parseConnInfo(url);
+	var name string;
+	var flags int;
+	var vfs *string;
+
+	name, flags, vfs, error = parseConnInfo(url);
 	if error != nil {
 		return
 	}
@@ -254,10 +258,9 @@ func open(url string) (connection db.Connection, error os.Error) {
 	flags |= OpenFullMutex;
 
 	conn := new(Connection);
-
 	rc := StatusOk;
-	p := C.CString(name);
 
+	p := C.CString(name);
 	if vfs != nil {
 		q := C.CString(*vfs);
 		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
@@ -265,27 +268,36 @@ func open(url string) (connection db.Connection, error os.Error) {
 	} else {
 		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
 	}
-
-	connection = conn;
-
 	C.free(unsafe.Pointer(p));
+
 	if rc != StatusOk {
 		error = conn.error();
+		// did we get a handle anyway? if so we need to
+		// close it, but that could trigger another,
+		// secondary error; for now we ignore that one
+		if conn.handle != nil {
+			_ = conn.Close();
+		}
 		return;
 	}
 
 	rc = int(C.sqlite3_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
 	if rc != StatusOk {
 		error = conn.error();
+		// ignore potential secondary error
+		_ = conn.Close();
 		return;
 	}
 
 	rc = int(C.sqlite3_extended_result_codes(conn.handle, C.int(1)));
 	if rc != StatusOk {
 		error = conn.error();
+		// ignore potential secondary error
+		_ = conn.Close();
 		return;
 	}
 
+	connection = conn;
 	return;
 }
 
@@ -306,13 +318,15 @@ func (self *Connection) error() (error os.Error) {
 
 // Precompile query into Statement.
 func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error) {
-	q := C.CString(query);
 	s := new(Statement);
 	s.connection = self;
 
+	p := C.CString(query);
 	// -1: process q until 0 byte, nil: don't return tail pointer
-	// TODO: may need tail to process statement sequence?
-	rc := C.sqlite3_prepare_v2(self.handle, q, -1, &s.handle, nil);
+	// TODO: may need tail to process statement sequence? or at
+	// least to generate an error that we missed some SQL?
+	rc := C.sqlite3_prepare_v2(self.handle, p, -1, &s.handle, nil);
+	C.free(unsafe.Pointer(p));
 
 	if rc != StatusOk {
 		error = self.error();
