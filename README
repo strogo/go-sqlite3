@@ -9,4 +9,7 @@ The driver is not yet stable! If you decide to track
 it, you should be okay with frequent, potentially
 incompatible changes. You have been warned.
 
+To install, clone into $GOROOT/src/pkg/db/sqlite3/
+for now.
+
 Special thanks to Eden Li and Masaaki Yonebayashi.
