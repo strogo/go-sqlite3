@@ -1,15 +1,12 @@
-Work in progress.
+SQLite database driver for Go
 
-pkg/db
-	Generic database API for Go that supports
-	multiple database systems.
+The SQLite driver supports the generic database API
+described here:
 
-pkg/db/sqlite3
-	Database driver enabling access to SQLite
-	from Go.
+	http://github.com/phf/go-db
 
-These are in flux constantly, don't rely on them
-yet. Discussions regarding the generic API happen
-mostly on golang-nuts@googlegroups.com for now.
+The driver is not yet stable! If you decide to track
+it, you should be okay with frequent, potentially
+incompatible changes. You have been warned.
 
 Special thanks to Eden Li and Masaaki Yonebayashi.
