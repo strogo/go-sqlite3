@@ -8,8 +8,6 @@ import "fmt"
 
 // Error in the database driver itself, *not* the database
 // system we talk to.
-//
-// TODO: this should really be explained in the generic API...
 type DriverError struct {
 	message string;
 }
