@@ -621,12 +621,12 @@ func (self *ResultSet) iterate() {
 		// block until either send or receive
 		select {
 		case self.results <- self.classic.Fetch():
-			fmt.Printf("sent to %s", self.results);
+//			fmt.Printf("sent to %s", self.results);
 		case _ = <-self.stops:
-			fmt.Printf("received from %s", self.stops);
+//			fmt.Printf("received from %s", self.stops);
 			break;
-		default:
-			fmt.Printf("debugging: no communication");
+//		default:
+//			fmt.Printf("debugging: no communication");
 		}
 	}
 	self.kill();
