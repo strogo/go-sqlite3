@@ -115,8 +115,15 @@ func sqlOpen(name string, flags int, vfs string) (conn *sqlConnection, rc int) {
 	} else {
 		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
 	}
-	// TODO: handle case of handle despite of rc != StatusOk?
 	C.free(unsafe.Pointer(p));
+
+	// We could get a handle even if there's an error, see
+	// http://www.sqlite.org/c3ref/open.html for details.
+	// But we don't want to return a connection on error.
+	if rc != StatusOk && conn.handle != nil {
+		_ = conn.sqlClose();
+		conn = nil;
+	}
 
 	return;
 }
@@ -165,8 +172,31 @@ func (self *sqlConnection) sqlExtendedErrorCode() int {
 		// just return the regular error code...
 		return self.sqlErrorCode();
 	}
-
 	return int(C.sqlite3_extended_errcode(self.handle));
+}
+
+func (self *sqlConnection) sqlPrepare(query string) (stat sqlStatement, rc int) {
+	stat = new(sqlStatement);
+
+	p := C.CString(query);
+	// TODO: may need tail to process statement sequence? or at
+	// least to generate an error that we missed some SQL?
+	//
+	// -1: process query until 0 byte
+	// nil: don't return tail pointer
+	rc = C.sqlite3_prepare_v2(self.handle, p, -1, &stat.handle, nil);
+	C.free(unsafe.Pointer(p));
+
+	// We are not supposed to get a handle on error. Since
+	// sqlite3_open() follows a different rule, however, we
+	// indulge in paranoia and check to make sure. We really
+	// don't want to return a statement on error.
+	if rc != StatusOk && stat.handle != nil {
+		_ = stat.sqlFinalize();
+		stat = nil;
+	}
+
+	return;
 }
 
 /*
@@ -174,9 +204,6 @@ func (self *sqliteConnection) prepare(query string) (statement sqliteStatement, 
 	s := new(sqliteStatement);
 
 	p := C.CString(query);
-	// -1: process q until 0 byte, nil: don't return tail pointer
-	// TODO: may need tail to process statement sequence? or at
-	// least to generate an error that we missed some SQL?
 	rc := C.sqlite3_prepare_v2(self.handle, p, -1, &s.handle, nil);
 	C.free(unsafe.Pointer(p));
 
