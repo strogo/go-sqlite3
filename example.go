@@ -37,7 +37,7 @@ func main() {
 	fmt.Printf("cursor: %s\n", cc);
 
 	fmt.Printf("About to fetch all results\n");
-	d, e := cc.FetchAll();
+	d, e := db.ClassicFetchAll(cc);
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())
 	}
@@ -58,23 +58,23 @@ func main() {
 	fmt.Printf("cursor: %s\n", cc);
 
 	fmt.Printf("About to fetch one row\n");
-	r, e := cc.FetchOne();
-	if e != nil {
-		fmt.Printf("error: %s\n", e.String())
+	r := cc.Fetch();
+	if r.Error() != nil {
+		fmt.Printf("error: %s\n", r.Error().String())
 	}
 	fmt.Printf("cursor: %s\n", cc);
 	fmt.Printf("data: %s\n", r);
 
 	fmt.Printf("About to fetch another row\n");
-	f, e := cc.FetchOne();
-	if e != nil {
-		fmt.Printf("error: %s\n", e.String())
+	f := cc.Fetch();
+	if f.Error() != nil {
+		fmt.Printf("error: %s\n", f.Error().String())
 	}
 	fmt.Printf("cursor: %s\n", cc);
 	fmt.Printf("data: %s\n", f);
 
 	fmt.Printf("About to fetch the rest\n");
-	g, e := cc.FetchMany(10);
+	g, e := db.ClassicFetchAll(cc); // was cc.FetchMany(10);
 	fmt.Printf("%s\n", g);
 	if e != nil {
 		fmt.Printf("error: %s\n", e.String())

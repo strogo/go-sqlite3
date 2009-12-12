@@ -371,7 +371,7 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 //
 // TODO: Figure out parameter stuff, right now all are
 // TEXT parameters. :-/
-func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
+func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (rset db.ClassicResultSet, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {
 		error = &DriverError{"Execute: Not an sqlite3 statement!"};
@@ -408,11 +408,11 @@ func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (
 
 	if rc == StatusRow {
 		// statement is producing results, need a cursor
-		c := new(Cursor);
-		c.statement = s;
-		c.connection = self;
-		c.result = true;
-		cursor = c;
+		rs := new(ClassicResultSet);
+		rs.statement = s;
+		rs.connection = self;
+		rs.more = true;
+		rset = rs;
 	} else {
 		// clean up after error or done
 		s.clear()
@@ -430,19 +430,11 @@ func (self *Result) Data() []interface{}	{ return self.data }
 
 func (self *Result) Error() os.Error	{ return self.error }
 
-func iterate(cursor db.Cursor, channel chan<- db.Result) {
-	var err os.Error;
-	var data []interface{}
-	var res *Result = new(Result);
-
-	for cursor.MoreResults() {
-		data, err = cursor.FetchOne();
-		res.data = data;
-		res.error = err;
-		channel <- res;
+func iterate(rset db.ClassicResultSet, channel chan<- db.Result) {
+	for rset.More() {
+		channel <- rset.Fetch();
 	}
-
-	cursor.Close();
+	rset.Close();
 	close(channel);
 }
 
@@ -653,4 +645,60 @@ func (self *Cursor) Close() os.Error {
 	// we want the statement to stay around. Should
 	// we reset it here?
 	return nil
+}
+
+
+
+type ClassicResultSet struct {
+	statement	*Statement;
+	connection	*Connection;
+	more		bool;	// still have results left
+}
+
+func (self *ClassicResultSet) More() bool {
+	return self.more;
+}
+
+func (self *ClassicResultSet) Fetch() (result db.Result) {
+	res := new(Result);
+	result = res;
+
+	if !self.more {
+		res.error = &DriverError{"Fetch: No result to fetch!"};
+		return;
+	}
+
+	// assemble results from current row
+	nColumns := int(C.sqlite3_column_count(self.statement.handle));
+	if nColumns <= 0 {
+		res.error = &DriverError{"Fetch: No columns in result!"};
+		return;
+	}
+	res.data = make([]interface{}, nColumns);
+	for i := 0; i < nColumns; i++ {
+		text := C.wsq_column_text(self.statement.handle, C.int(i));
+		// TODO: what if text == nil?
+		res.data[i] = C.GoString(text);
+	}
+
+	// try to get another row
+	rc := C.sqlite3_step(self.statement.handle);
+
+	if rc != StatusDone && rc != StatusRow {
+		// presumably any other outcome is an error
+		// TODO: is res.error the right place?
+		res.error = self.connection.error()
+	}
+
+	if rc == StatusDone {
+		self.more = false;
+		// clean up when done
+		self.statement.clear();
+	}
+
+	return;
+}
+
+func (self *ClassicResultSet) Close() os.Error {
+	return nil;
 }
