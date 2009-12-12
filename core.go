@@ -430,17 +430,15 @@ func iterate(rset db.ClassicResultSet, channel chan<- db.Result) {
 	close(channel);
 }
 
-func (self *Connection) Execute(statement db.Statement, parameters ...) (channel <-chan db.Result, error os.Error) {
-	ch := make(chan db.Result);
-
-	cur, error := self.ExecuteClassic(statement, parameters);
+func (self *Connection) Execute(statement db.Statement, parameters ...) (rs db.ResultSet, error os.Error) {
+	var crs db.ClassicResultSet;
+	crs, error = self.ExecuteClassic(statement, parameters);
 	if error != nil {
 		return
 	}
-
-	go iterate(cur, ch);
-
-	channel = ch;
+	mrs := new(ResultSet);
+	mrs.init(crs);
+	rs = mrs;
 	return;
 }
 
@@ -595,14 +593,14 @@ func (self *ClassicResultSet) Close() os.Error {
 
 type ResultSet struct {
 	// we implement everything in terms of classic stuff
-	classic *ClassicResultSet;
+	classic db.ClassicResultSet;
 	// channel to send results through
 	results chan db.Result;
 	// channel to check for termination
 	stops chan bool;
 }
 
-func (self *ResultSet) init(crs *ClassicResultSet) {
+func (self *ResultSet) init(crs db.ClassicResultSet) {
 	self.classic = crs;
 	self.results = make(chan db.Result);
 	self.stops = make(chan bool);
@@ -640,7 +638,9 @@ func (self *ResultSet) Iter() <-chan db.Result {
 }
 
 func (self *ResultSet) Close() os.Error {
-	self.stops <- true;
+	if self.stops != nil {
+		self.stops <- true;
+	}
 	return nil;
 }
 
