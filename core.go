@@ -71,7 +71,6 @@ int wsq_config(int option)
 import "C"
 
 import (
-	"container/vector";
 	"db";	// generic database API
 	"fmt";
 	"http";
@@ -140,13 +139,6 @@ type Connection struct {
 type Statement struct {
 	handle		*C.sqlite3_stmt;
 	connection	*Connection;
-}
-
-// SQLite cursors, will be renamed/refactored soon
-type Cursor struct {
-	statement	*Statement;
-	connection	*Connection;
-	result		bool;	// still have results left
 }
 
 // SQLite version information
@@ -497,113 +489,7 @@ func (self *Statement) clear() (error os.Error) {
 	return;
 }
 
-func (self *Cursor) MoreResults() bool	{ return self.result }
-
-// Fetch another result. Once results are exhausted, the
-// the statement that produced them will be reset and
-// ready for another execution.
-func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
-	if !self.result {
-		error = &DriverError{"FetchOne: No results to fetch!"};
-		return;
-	}
-
-	// assemble results from current row
-	nColumns := int(C.sqlite3_column_count(self.statement.handle));
-	if nColumns <= 0 {
-		error = &DriverError{"FetchOne: No columns in result!"};
-		return;
-	}
-	data = make([]interface{}, nColumns);
-	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.statement.handle, C.int(i));
-		data[i] = C.GoString(text);
-	}
-
-	// try to get another row
-	rc := C.sqlite3_step(self.statement.handle);
-
-	if rc != StatusDone && rc != StatusRow {
-		// presumably any other outcome is an error
-		error = self.connection.error()
-	}
-
-	if rc == StatusDone {
-		self.result = false;
-		// clean up when done
-		self.statement.clear();
-	}
-
-	return;
-}
-
-// Fetch at most count results. If we get no results at
-// all, an error will be returned; otherwise it probably
-// still occurred but will be hidden.
-func (self *Cursor) FetchMany(count int) (data [][]interface{}, error os.Error) {
-	d := make([][]interface{}, count);
-	l := 0;
-	var e os.Error;
-
-	// grab at most count results
-	for l < count {
-		d[l], e = self.FetchOne();
-		if e == nil {
-			l += 1
-		} else {
-			break
-		}
-	}
-
-	if l > 0 {
-		// there were results
-		if l < count {
-			// but fewer than expected, need fresh copy
-			data = make([][]interface{}, l);
-			for i := 0; i < l; i++ {
-				data[i] = d[i]
-			}
-		} else {
-			data = d
-		}
-	} else {
-		// no results at all, return the error
-		error = e
-	}
-
-	return;
-}
-
-func (self *Cursor) FetchAll() (data [][]interface{}, error os.Error) {
-	var v vector.Vector;
-	var d interface{}
-	var e os.Error;
-
-	// grab results until error
-	for {
-		d, e = self.FetchOne();
-		if e != nil {
-			break
-		}
-		v.Push(d);
-	}
-
-	l := v.Len();
-
-	if l > 0 {
-		// TODO: how can this be done better?
-		data = make([][]interface{}, l);
-		for i := 0; i < l; i++ {
-			data[i] = v.At(i).([]interface{})
-		}
-	} else {
-		// no results at all, return the error
-		error = e
-	}
-
-	return;
-}
-
+/*
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
 		error = &DriverError{"FetchRow: No results to fetch!"};
@@ -639,26 +525,23 @@ func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 
 	return;
 }
+*/
 
-func (self *Cursor) Close() os.Error {
-	// Hmmm... There's really nothing to do since
-	// we want the statement to stay around. Should
-	// we reset it here?
-	return nil
-}
-
-
-
+// TODO
 type ClassicResultSet struct {
 	statement	*Statement;
 	connection	*Connection;
 	more		bool;	// still have results left
 }
 
+// TODO
 func (self *ClassicResultSet) More() bool {
 	return self.more;
 }
 
+// Fetch another result. Once results are exhausted, the
+// the statement that produced them will be reset and
+// ready for another execution.
 func (self *ClassicResultSet) Fetch() (result db.Result) {
 	res := new(Result);
 	result = res;
@@ -699,6 +582,8 @@ func (self *ClassicResultSet) Fetch() (result db.Result) {
 	return;
 }
 
+// TODO
+// TODO: reset statement here as well, just like in Fetch
 func (self *ClassicResultSet) Close() os.Error {
 	return nil;
 }
