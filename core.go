@@ -71,7 +71,7 @@ int wsq_config(int option)
 import "C"
 
 import (
-	"db";	// generic database API
+	"db";
 	"fmt";
 	"http";
 	"os";
