@@ -29,12 +29,12 @@
 // now we simply force SQLite into "serialized" threading mode
 // (see http://www.sqlite.org/threadsafe.html for details).
 //
-// XXX: it would be nice if cgo could grok several .go files,
-// so far it can't; so all the C interface stuff has to be
-// in one file; bummer that; an alternative would be to move
-// all the high-level stuff out and keep a very low-level,
-// mostly procedural API here; hmm...
-// see http://code.google.com/p/go/issues/detail?id=342
+// TODO: For now cgo cannot grok several .go files at once,
+// see http://code.google.com/p/go/issues/detail?id=342 for
+// details. We have to refactor core.go into two layers, a
+// cgo-layer low.go that provides a very basic internal API
+// for SQLite, and several go-level files that provide what
+// is currently in core.go; it'll take time. :-/
 package sqlite3
 
 /*
