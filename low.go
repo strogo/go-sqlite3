@@ -36,6 +36,7 @@ int wsq_config(int option)
 }
 */
 import "C"
+import "unsafe"
 
 // If something goes wrong on this level, we simply bomb
 // out, there's no use trying to recover; note that most
@@ -103,6 +104,23 @@ func sqlSourceId() string {
 	return C.GoString(cp);
 }
 
+func sqlOpen(name string, flags int, vfs string) (conn *sqlConnection, rc int) {
+	conn = new(sqlConnection);
+
+	p := C.CString(name);
+	if len(vfs) > 0 {
+		q := C.CString(vfs);
+		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
+		C.free(unsafe.Pointer(q));
+	} else {
+		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
+	}
+	// TODO: handle case of handle despite of rc != StatusOk?
+	C.free(unsafe.Pointer(p));
+
+	return;
+}
+
 func (self *sqlConnection) sqlClose() int {
 	return int(C.sqlite3_close(self.handle));
 }
@@ -124,72 +142,34 @@ func (self *sqlConnection) sqlExtendedResultCodes(on bool) int {
 	return int(C.sqlite3_extended_result_codes(conn.handle, C.int(v)));
 }
 
+func (self *sqlConnection) sqlErrorMessage() string {
+	cp := C.sqlite3_errmsg();
+	if cp == nil {
+		// The call can't really fail since it returns
+		// a string constant, but let's be safe...
+		sqlPanic("can't get error message");
+	}
+	return C.GoString(cp);
+}
+
+func (self *sqlConnection) sqlErrorCode() int {
+	return int(C.sqlite3_errcode(self.handle));
+}
+
+func (self *sqlConnection) sqlExtendedErrorCode() int {
+	// SQLite 3.6.5 introduced sqlite3_extended_errcode(),
+	// see http://www.hwaci.com/sw/sqlite/changes.html for
+	// details; we can't expect wide availability yet, for
+	// example Debian Lenny ships SQLite 3.5.9 only.
+	if sqlVersionNumber() < 3006005 {
+		// just return the regular error code...
+		return self.sqlErrorCode();
+	}
+
+	return int(C.sqlite3_extended_errcode(self.handle));
+}
+
 /*
-func sqliteOpen(name string, flags int, vfs string) (connection sqliteConnection, error os.Error) {
-	// We want all connections to be in serialized threading
-	// mode, so we fiddle with the flags to make sure.
-	flags &^= OpenNoMutex;
-	flags |= OpenFullMutex;
-
-	conn := new(sqliteConnection);
-	rc := StatusOk;
-
-	p := C.CString(name);
-	if len(vfs) > 0 {
-		q := C.CString(vfs);
-		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
-		C.free(unsafe.Pointer(q));
-	} else {
-		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
-	}
-	C.free(unsafe.Pointer(p));
-
-	if rc != StatusOk {
-		error = conn.error();
-		// did we get a handle anyway? if so we need to
-		// close it, but that could trigger another,
-		// secondary error; for now we ignore that one
-		if conn.handle != nil {
-			_ = conn.Close();
-		}
-		return;
-	}
-
-	rc = int(C.sqlite3_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
-	if rc != StatusOk {
-		error = conn.error();
-		// ignore potential secondary error
-		_ = conn.Close();
-		return;
-	}
-
-	rc = int(C.sqlite3_extended_result_codes(conn.handle, C.int(1)));
-	if rc != StatusOk {
-		error = conn.error();
-		// ignore potential secondary error
-		_ = conn.Close();
-		return;
-	}
-
-	connection = conn;
-	return;
-}
-
-func (self *sqliteConnection) error() (error os.Error) {
-	e := new(SystemError);
-	// 3.6.5
-	// http://www.hwaci.com/sw/sqlite/changes.html
-	// Debian's SQLite 3.5.9 has no sqlite3_extended_errcode.
-	// It's not really needed anyway if we ask SQLite to use
-	// extended codes for the normal sqlite3_errcode() call;
-	// we just have to mask out high bits to turn them back
-	// into basic errors. :-D
-	e.extended = int(C.sqlite3_errcode(self.handle));
-	e.basic = e.extended & 0xff;
-	e.message = C.GoString(C.sqlite3_errmsg(self.handle));
-	return e;
-}
-
 func (self *sqliteConnection) prepare(query string) (statement sqliteStatement, error os.Error) {
 	s := new(sqliteStatement);
 
