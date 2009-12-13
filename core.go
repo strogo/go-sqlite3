@@ -221,14 +221,6 @@ func open(url string) (connection db.Connection, error os.Error) {
 	return;
 }
 
-func iterate(rset db.ClassicResultSet, channel chan<- db.Result) {
-	for rset.More() {
-		channel <- rset.Fetch();
-	}
-	rset.Close();
-	close(channel);
-}
-
 /*
 func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
 	if !self.result {
