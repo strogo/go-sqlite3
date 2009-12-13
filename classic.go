@@ -4,18 +4,39 @@
 
 package sqlite3
 
+// We use the "classic" stuff without channels to implement
+// the nicer, more Go-like channel-based stuff. Officially
+// the "classic" API is optional, but we really need it. :-D
+
 import (
 	"db";
 	"os";
 	"reflect";
 )
 
+// stolen from fmt package, special-cases interface values
+func getField(v *reflect.StructValue, i int) reflect.Value {
+	val := v.Field(i);
+	if i, ok := val.(*reflect.InterfaceValue); ok {
+		if inter := i.Interface(); inter != nil {
+			return reflect.NewValue(inter)
+		}
+	}
+	return val;
+}
+
+func struct2array(s *reflect.StructValue) (r []interface{}) {
+	l := s.NumField();
+	r = make([]interface{}, l);
+	for i := 0; i < l; i++ {
+		r[i] = getField(s, i)
+	}
+	return;
+}
+
 // Execute precompiled statement with given parameters
 // (if any). The statement stays valid even if we fail
 // to execute with given parameters.
-//
-// TODO: Figure out parameter stuff, right now all are
-// TEXT parameters. :-/
 func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (rset db.ClassicResultSet, error os.Error) {
 	s, ok := statement.(*Statement);
 	if !ok {

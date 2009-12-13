@@ -7,7 +7,6 @@ package sqlite3
 import (
 	"db";
 	"os";
-	"reflect";
 )
 
 // SQLite connections
@@ -51,26 +50,6 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 	}
 
 	statement = s;
-	return;
-}
-
-// stolen from fmt package, special-cases interface values
-func getField(v *reflect.StructValue, i int) reflect.Value {
-	val := v.Field(i);
-	if i, ok := val.(*reflect.InterfaceValue); ok {
-		if inter := i.Interface(); inter != nil {
-			return reflect.NewValue(inter)
-		}
-	}
-	return val;
-}
-
-func struct2array(s *reflect.StructValue) (r []interface{}) {
-	l := s.NumField();
-	r = make([]interface{}, l);
-	for i := 0; i < l; i++ {
-		r[i] = getField(s, i)
-	}
 	return;
 }
 
