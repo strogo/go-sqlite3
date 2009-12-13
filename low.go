@@ -119,11 +119,13 @@ func sqlOpen(name string, flags int, vfs string) (conn *sqlConnection, rc int) {
 
 	// We could get a handle even if there's an error, see
 	// http://www.sqlite.org/c3ref/open.html for details.
-	// But we don't want to return a connection on error.
-	if rc != StatusOk && conn.handle != nil {
-		_ = conn.sqlClose();
-		conn = nil;
-	}
+	// Initially we didn't want to return a connection on
+	// error, but we actually have to since we want to fill
+	// in a SystemError struct. Sigh.
+//	if rc != StatusOk && conn.handle != nil {
+//		_ = conn.sqlClose();
+//		conn = nil;
+//	}
 
 	return;
 }
