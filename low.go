@@ -264,10 +264,11 @@ func (self *sqlStatement) sqlColumnName(col int) string {
 
 func (self *sqlStatement) sqlColumnText(col int) string {
 	cp := C.wsq_column_text(self.handle, C.int(col));
-	if cp == nil {
-		// TODO: not sure at all when and how this can
-		// fail...
-		sqlPanic("can't get column text");
-	}
+	// Apparently this can return nil, for example if there
+	// is no value in the column. So we can't sanity check
+	// anything here...
+//	if cp == nil {
+//		sqlPanic("can't get column text");
+//	}
 	return C.GoString(cp);
 }
