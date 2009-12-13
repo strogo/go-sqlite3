@@ -74,60 +74,6 @@ func struct2array(s *reflect.StructValue) (r []interface{}) {
 	return;
 }
 
-// Execute precompiled statement with given parameters
-// (if any). The statement stays valid even if we fail
-// to execute with given parameters.
-//
-// TODO: Figure out parameter stuff, right now all are
-// TEXT parameters. :-/
-func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (rset db.ClassicResultSet, error os.Error) {
-	s, ok := statement.(*Statement);
-	if !ok {
-		error = &DriverError{"Execute: Not an sqlite3 statement!"};
-		return;
-	}
-
-	p := reflect.NewValue(parameters).(*reflect.StructValue);
-
-	if p.NumField() != s.handle.sqlBindParameterCount() {
-		error = &DriverError{"Execute: Number of parameters doesn't match!"};
-		return;
-	}
-
-	pa := struct2array(p);
-
-	for k, v := range pa {
-		q := v.(*reflect.StringValue).Get();
-		rc := s.handle.sqlBindText(k, q);
-
-		if rc != StatusOk {
-			error = self.error();
-			s.clear();
-			return;
-		}
-	}
-
-	rc := s.handle.sqlStep();
-
-	if rc != StatusDone && rc != StatusRow {
-		// presumably any other outcome is an error
-		error = self.error()
-	}
-
-	if rc == StatusRow {
-		// statement is producing results, need a cursor
-		rs := new(ClassicResultSet);
-		rs.statement = s;
-		rs.connection = self;
-		rs.more = true;
-		rset = rs;
-	} else {
-		// clean up after error or done
-		s.clear()
-	}
-
-	return;
-}
 
 
 func (self *Connection) Execute(statement db.Statement, parameters ...) (rs db.ResultSet, error os.Error) {
