@@ -148,11 +148,11 @@ func (self *sqlConnection) sqlBusyTimeout(milliseconds int) int {
 
 func (self *sqlConnection) sqlExtendedResultCodes(on bool) int {
 	v := map[bool]int{true: 1, false: 0}[on];
-	return int(C.sqlite3_extended_result_codes(conn.handle, C.int(v)));
+	return int(C.sqlite3_extended_result_codes(self.handle, C.int(v)));
 }
 
 func (self *sqlConnection) sqlErrorMessage() string {
-	cp := C.sqlite3_errmsg();
+	cp := C.sqlite3_errmsg(self.handle);
 	if cp == nil {
 		// The call can't really fail since it returns
 		// a string constant, but let's be safe...
@@ -177,7 +177,7 @@ func (self *sqlConnection) sqlExtendedErrorCode() int {
 	return int(C.sqlite3_extended_errcode(self.handle));
 }
 
-func (self *sqlConnection) sqlPrepare(query string) (stat sqlStatement, rc int) {
+func (self *sqlConnection) sqlPrepare(query string) (stat *sqlStatement, rc int) {
 	stat = new(sqlStatement);
 
 	p := C.CString(query);
@@ -186,7 +186,7 @@ func (self *sqlConnection) sqlPrepare(query string) (stat sqlStatement, rc int) 
 	//
 	// -1: process query until 0 byte
 	// nil: don't return tail pointer
-	rc = C.sqlite3_prepare_v2(self.handle, p, -1, &stat.handle, nil);
+	rc = int(C.sqlite3_prepare_v2(self.handle, p, -1, &stat.handle, nil));
 	C.free(unsafe.Pointer(p));
 
 	// We are not supposed to get a handle on error. Since
@@ -211,7 +211,7 @@ func (self *sqlStatement) sqlBindText(slot int, value string) int {
 	p := C.CString(value);
 	// SQLite counts slots from 1 instead of 0; -1 means "until
 	// end of string" here.
-	rc := C.wsq_bind_text(self.handle, C.int(slot+1), p, C.int(-1));
+	rc := int(C.wsq_bind_text(self.handle, C.int(slot+1), p, C.int(-1)));
 	C.free(unsafe.Pointer(p));
 	return rc;
 }
@@ -220,7 +220,7 @@ func (self *sqlStatement) sqlStep() int {
 	return int(C.sqlite3_step(self.handle));
 }
 
-func (self *sqliteStatement) sqlSql() string {
+func (self *sqlStatement) sqlSql() string {
 	cp := C.sqlite3_sql(self.handle);
 	if cp == nil {
 		// The call shouldn't fail unless we forgot to
@@ -247,10 +247,10 @@ func (self *sqlStatement) sqlColumnCount() int {
 }
 
 func (self *sqlStatement) sqlColumnType(col int) int {
-	return int(C.sqlite3_column_type(self.handle));
+	return int(C.sqlite3_column_type(self.handle, C.int(col)));
 }
 
-func (self *sqliteStatement) sqlColumnName(col int) string {
+func (self *sqlStatement) sqlColumnName(col int) string {
 	cp := C.wsq_column_name(self.handle, C.int(col));
 	if cp == nil {
 		// TODO: not sure at all when and how this can
@@ -260,7 +260,7 @@ func (self *sqliteStatement) sqlColumnName(col int) string {
 	return C.GoString(cp);
 }
 
-func (self *sqliteStatement) sqlColumnText(col int) string {
+func (self *sqlStatement) sqlColumnText(col int) string {
 	cp := C.wsq_column_text(self.handle, C.int(col));
 	if cp == nil {
 		// TODO: not sure at all when and how this can

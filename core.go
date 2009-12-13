@@ -37,39 +37,6 @@
 // is currently in core.go; it'll take time. :-/
 package sqlite3
 
-/*
-#include <stdlib.h>
-#include <sqlite3.h>
-
-// needed since sqlite3_column_text() and sqlite3_column_name()
-// return const unsigned char* for some wack-a-doodle reason
-const char *wsq_column_text(sqlite3_stmt *statement, int column)
-{
-	return (const char *) sqlite3_column_text(statement, column);
-}
-const char *wsq_column_name(sqlite3_stmt *statement, int column)
-{
-        return (const char *) sqlite3_column_name(statement, column);
-}
-
-// needed to work around the void(*)(void*) callback that is the
-// last argument to sqlite3_bind_text(); SQLITE_TRANSIENT forces
-// SQLite to make a private copy of the data
-int wsq_bind_text(sqlite3_stmt *statement, int i, const char* text, int n)
-{
-	return sqlite3_bind_text(statement, i, text, n, SQLITE_TRANSIENT);
-}
-
-// needed to work around the ... argument of sqlite3_config(); if
-// we ever require an option with parameters, we'll have to add more
-// wrappers
-int wsq_config(int option)
-{
-	return sqlite3_config(option);
-}
-*/
-import "C"
-
 import (
 	"db";
 	"fmt";
@@ -77,7 +44,6 @@ import (
 	"os";
 	"reflect";
 	"strconv";
-	"unsafe";
 )
 
 // These constants can be or'd together and passed as the
@@ -132,12 +98,12 @@ const defaultTimeoutMilliseconds = 16 * 1000
 
 // SQLite connections
 type Connection struct {
-	handle *C.sqlite3;
+	handle *sqlConnection;
 }
 
 // SQLite statements
 type Statement struct {
-	handle		*C.sqlite3_stmt;
+	handle		*sqlStatement;
 	connection	*Connection;
 }
 
@@ -154,7 +120,7 @@ func init() {
 
 	// Supposedly serialized mode is the default,
 	// but let's make sure...
-	rc := C.wsq_config(configSerialized);
+	rc := sqlConfig(configSerialized);
 	if rc != StatusOk {
 		panic("sqlite3 fatal error: can't switch to serialized mode")
 	}
@@ -164,32 +130,16 @@ func init() {
 // "sqlite3.sourceid", and "sqlite3.versionnumber"; the
 // latter are specific to SQLite.
 func version() (data map[string]string, error os.Error) {
-	data = make(map[string]string);
-
-	cp := C.sqlite3_libversion();
-	if cp == nil {
-		error = &DriverError{"Version: couldn't get library version!"};
-		return;
-	}
-	data["version"] = C.GoString(cp);
 	// TODO: fake client and server keys?
-
-	i := C.sqlite3_libversion_number();
-	data["sqlite3.versionnumber"] = strconv.Itob(int(i), 10);
-
-	// Debian's SQLite 3.5.9 has no sqlite3_sourceid.
-	// TODO: find out exact version to cut off on...
-	if i > 3005009 {
-		cp = C.sqlite3_sourceid();
-		if cp != nil {
-			data["sqlite3.sourceid"] = C.GoString(cp)
-		}
-	}
-
+	data = make(map[string]string);
+	data["version"] = sqlVersion();
+	i := sqlVersionNumber();
+	data["sqlite3.versionnumber"] = strconv.Itob(i, 10);
+	data["sqlite3.sourceid"] = sqlSourceId();
 	return;
 }
 
-func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Error) {
+func parseConnInfo(str string) (name string, flags int, vfs string, error os.Error) {
 	var url *http.URL;
 
 	url, error = http.ParseURL(str);
@@ -224,11 +174,7 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 				return	// XXX really return error from Atoi?
 			}
 		}
-		rvfs, ok := options["vfs"];
-		if ok {
-			vfs = new(string);
-			*vfs = rvfs;
-		}
+		vfs, ok = options["vfs"];
 	}
 
 	return;
@@ -237,7 +183,7 @@ func parseConnInfo(str string) (name string, flags int, vfs *string, error os.Er
 func open(url string) (connection db.Connection, error os.Error) {
 	var name string;
 	var flags int;
-	var vfs *string;
+	var vfs string;
 
 	name, flags, vfs, error = parseConnInfo(url);
 	if error != nil {
@@ -250,17 +196,8 @@ func open(url string) (connection db.Connection, error os.Error) {
 	flags |= OpenFullMutex;
 
 	conn := new(Connection);
-	rc := StatusOk;
-
-	p := C.CString(name);
-	if vfs != nil {
-		q := C.CString(*vfs);
-		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), q));
-		C.free(unsafe.Pointer(q));
-	} else {
-		rc = int(C.sqlite3_open_v2(p, &conn.handle, C.int(flags), nil))
-	}
-	C.free(unsafe.Pointer(p));
+	var rc int;
+	conn.handle, rc = sqlOpen(name, flags, vfs);
 
 	if rc != StatusOk {
 		error = conn.error();
@@ -273,7 +210,7 @@ func open(url string) (connection db.Connection, error os.Error) {
 		return;
 	}
 
-	rc = int(C.sqlite3_busy_timeout(conn.handle, defaultTimeoutMilliseconds));
+	rc = conn.handle.sqlBusyTimeout(defaultTimeoutMilliseconds);
 	if rc != StatusOk {
 		error = conn.error();
 		// ignore potential secondary error
@@ -281,7 +218,7 @@ func open(url string) (connection db.Connection, error os.Error) {
 		return;
 	}
 
-	rc = int(C.sqlite3_extended_result_codes(conn.handle, C.int(1)));
+	rc = conn.handle.sqlExtendedResultCodes(true);
 	if rc != StatusOk {
 		error = conn.error();
 		// ignore potential secondary error
@@ -302,9 +239,9 @@ func (self *Connection) error() (error os.Error) {
 	// extended codes for the normal sqlite3_errcode() call;
 	// we just have to mask out high bits to turn them back
 	// into basic errors. :-D
-	e.extended = int(C.sqlite3_errcode(self.handle));
+	e.extended = self.handle.sqlErrorCode();
 	e.basic = e.extended & 0xff;
-	e.message = C.GoString(C.sqlite3_errmsg(self.handle));
+	e.message = self.handle.sqlErrorMessage();
 	return e;
 }
 
@@ -312,13 +249,8 @@ func (self *Connection) error() (error os.Error) {
 func (self *Connection) Prepare(query string) (statement db.Statement, error os.Error) {
 	s := new(Statement);
 	s.connection = self;
-
-	p := C.CString(query);
-	// -1: process q until 0 byte, nil: don't return tail pointer
-	// TODO: may need tail to process statement sequence? or at
-	// least to generate an error that we missed some SQL?
-	rc := C.sqlite3_prepare_v2(self.handle, p, -1, &s.handle, nil);
-	C.free(unsafe.Pointer(p));
+	var rc int;
+	s.handle, rc = self.handle.sqlPrepare(query)
 
 	if rc != StatusOk {
 		error = self.error();
@@ -328,7 +260,7 @@ func (self *Connection) Prepare(query string) (statement db.Statement, error os.
 		// note that we shouldn't get a handle if there
 		// was an error, that's what the docs say...
 		if s.handle != nil {
-			_ = C.sqlite3_finalize(s.handle)
+			_ = s.handle.sqlFinalize();
 		}
 		return;
 	}
@@ -372,7 +304,7 @@ func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (
 
 	p := reflect.NewValue(parameters).(*reflect.StructValue);
 
-	if p.NumField() != int(C.sqlite3_bind_parameter_count(s.handle)) {
+	if p.NumField() != s.handle.sqlBindParameterCount() {
 		error = &DriverError{"Execute: Number of parameters doesn't match!"};
 		return;
 	}
@@ -380,9 +312,8 @@ func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (
 	pa := struct2array(p);
 
 	for k, v := range pa {
-		q := C.CString(v.(*reflect.StringValue).Get());
-		rc := C.wsq_bind_text(s.handle, C.int(k+1), q, C.int(-1));
-		C.free(unsafe.Pointer(q));
+		q := v.(*reflect.StringValue).Get();
+		rc := s.handle.sqlBindText(k, q);
 
 		if rc != StatusOk {
 			error = self.error();
@@ -391,7 +322,7 @@ func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (
 		}
 	}
 
-	rc := C.sqlite3_step(s.handle);
+	rc := s.handle.sqlStep();
 
 	if rc != StatusDone && rc != StatusRow {
 		// presumably any other outcome is an error
@@ -444,7 +375,7 @@ func (self *Connection) Execute(statement db.Statement, parameters ...) (rs db.R
 
 func (self *Connection) Close() (error os.Error) {
 	// TODO
-	rc := C.sqlite3_close(self.handle);
+	rc := self.handle.sqlClose();
 	if rc != StatusOk {
 		error = self.error()
 	}
@@ -452,23 +383,23 @@ func (self *Connection) Close() (error os.Error) {
 }
 
 func (self *Connection) Changes() (changes int, error os.Error) {
-	changes = int(C.sqlite3_changes(self.handle));
+	changes = self.handle.sqlChanges();
 	return;
 }
 
-func (self *Connection) LastId() (id int, error os.Error) {
+func (self *Connection) LastId() (id int64, error os.Error) {
 	// TODO: really returns sqlite3_int64, what to do?
-	id = int(C.sqlite3_last_insert_rowid(self.handle));
+	id = self.handle.sqlLastInsertRowId();
 	return;
 }
 
 func (self *Statement) String() string {
-	sql := C.sqlite3_sql(self.handle);
-	return C.GoString(sql);
+	sql := self.handle.sqlSql();
+	return sql;
 }
 
 func (self *Statement) Close() (error os.Error) {
-	rc := C.sqlite3_finalize(self.handle);
+	rc := self.handle.sqlFinalize();
 	if rc != StatusOk {
 		error = self.connection.error()
 	}
@@ -476,9 +407,9 @@ func (self *Statement) Close() (error os.Error) {
 }
 
 func (self *Statement) clear() (error os.Error) {
-	rc := C.sqlite3_reset(self.handle);
+	rc := self.handle.sqlReset();
 	if rc == StatusOk {
-		rc := C.sqlite3_clear_bindings(self.handle);
+		rc := self.handle.sqlClearBindings();
 		if rc == StatusOk {
 			return
 		}
@@ -550,20 +481,18 @@ func (self *ClassicResultSet) Fetch() (result db.Result) {
 	}
 
 	// assemble results from current row
-	nColumns := int(C.sqlite3_column_count(self.statement.handle));
+	nColumns := self.statement.handle.sqlColumnCount();
 	if nColumns <= 0 {
 		res.error = &DriverError{"Fetch: No columns in result!"};
 		return;
 	}
 	res.data = make([]interface{}, nColumns);
 	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.statement.handle, C.int(i));
-		// TODO: what if text == nil?
-		res.data[i] = C.GoString(text);
+		res.data[i] = self.statement.handle.sqlColumnText(i);
 	}
 
 	// try to get another row
-	rc := C.sqlite3_step(self.statement.handle);
+	rc := self.statement.handle.sqlStep();
 
 	if rc != StatusDone && rc != StatusRow {
 		// presumably any other outcome is an error
