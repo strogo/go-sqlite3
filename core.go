@@ -221,15 +221,6 @@ func open(url string) (connection db.Connection, error os.Error) {
 	return;
 }
 
-type Result struct {
-	data	[]interface{};
-	error	os.Error;
-}
-
-func (self *Result) Data() []interface{}	{ return self.data }
-
-func (self *Result) Error() os.Error	{ return self.error }
-
 func iterate(rset db.ClassicResultSet, channel chan<- db.Result) {
 	for rset.More() {
 		channel <- rset.Fetch();
