@@ -128,6 +128,8 @@ func sqlOpen(name string, flags int, vfs string) (conn *sqlConnection, rc int) {
 	return;
 }
 
+// Wrappers as connection methods.
+
 func (self *sqlConnection) sqlClose() int {
 	return int(C.sqlite3_close(self.handle));
 }
@@ -199,260 +201,71 @@ func (self *sqlConnection) sqlPrepare(query string) (stat sqlStatement, rc int) 
 	return;
 }
 
-/*
-func (self *sqliteConnection) prepare(query string) (statement sqliteStatement, error os.Error) {
-	s := new(sqliteStatement);
+// Wrappers as statement methods.
 
-	p := C.CString(query);
-	rc := C.sqlite3_prepare_v2(self.handle, p, -1, &s.handle, nil);
-	C.free(unsafe.Pointer(p));
-
-	if rc != StatusOk {
-		error = self.error();
-		// did we get a handle anyway? if so we need to
-		// finalize it, but that could trigger another,
-		// secondary error; for now we ignore that one;
-		// note that we shouldn't get a handle if there
-		// was an error, that's what the docs say...
-		if s.handle != nil {
-			_ = C.sqlite3_finalize(s.handle)
-		}
-		return;
-	}
-
-	statement = s;
-	return;
-}
-
-
-// Execute precompiled statement with given parameters
-// (if any). The statement stays valid even if we fail
-// to execute with given parameters.
-//
-// TODO: Figure out parameter stuff, right now all are
-// TEXT parameters. :-/
-func (self *Connection) ExecuteClassic(statement db.Statement, parameters ...) (cursor db.Cursor, error os.Error) {
-	s, ok := statement.(*Statement);
-	if !ok {
-		error = &DriverError{"Execute: Not an sqlite3 statement!"};
-		return;
-	}
-
-	p := reflect.NewValue(parameters).(*reflect.StructValue);
-
-	if p.NumField() != int(C.sqlite3_bind_parameter_count(s.handle)) {
-		error = &DriverError{"Execute: Number of parameters doesn't match!"};
-		return;
-	}
-
-	pa := struct2array(p);
-
-	for k, v := range pa {
-		q := C.CString(v.(*reflect.StringValue).Get());
-		rc := C.wsq_bind_text(s.handle, C.int(k+1), q, C.int(-1));
-		C.free(unsafe.Pointer(q));
-
-		if rc != StatusOk {
-			error = self.error();
-			s.clear();
-			return;
-		}
-	}
-
-	rc := C.sqlite3_step(s.handle);
-
-	if rc != StatusDone && rc != StatusRow {
-		// presumably any other outcome is an error
-		error = self.error()
-	}
-
-	if rc == StatusRow {
-		// statement is producing results, need a cursor
-		c := new(Cursor);
-		c.statement = s;
-		c.connection = self;
-		c.result = true;
-		cursor = c;
-	} else {
-		// clean up after error or done
-		s.clear()
-	}
-
-	return;
-}
-
-
-
-func (self *sqliteStatement) String() string {
-	sql := C.sqlite3_sql(self.handle);
-	return C.GoString(sql);
-}
-
-func (self *sqliteStatement) bindParameterCount() (int) {
+func (self *sqlStatement) sqlBindParameterCount() int {
 	return int(C.sqlite3_bind_parameter_count(self.handle));
 }
 
-func (self *Statement) Close() (error os.Error) {
-	rc := C.sqlite3_finalize(self.handle);
-	if rc != StatusOk {
-		error = self.connection.error()
-	}
-	return;
+func (self *sqlStatement) sqlBindText(slot int, value string) int {
+	p := C.CString(value);
+	// SQLite counts slots from 1 instead of 0; -1 means "until
+	// end of string" here.
+	rc := C.wsq_bind_text(self.handle, C.int(slot+1), p, C.int(-1));
+	C.free(unsafe.Pointer(p));
+	return rc;
 }
 
-func (self *Statement) clear() (error os.Error) {
-	rc := C.sqlite3_reset(self.handle);
-	if rc == StatusOk {
-		rc := C.sqlite3_clear_bindings(self.handle);
-		if rc == StatusOk {
-			return
-		}
-	}
-	error = self.connection.error();
-	return;
+func (self *sqlStatement) sqlStep() int {
+	return int(C.sqlite3_step(self.handle));
 }
 
-func (self *Cursor) MoreResults() bool	{ return self.result }
-
-// Fetch another result. Once results are exhausted, the
-// the statement that produced them will be reset and
-// ready for another execution.
-func (self *Cursor) FetchOne() (data []interface{}, error os.Error) {
-	if !self.result {
-		error = &DriverError{"FetchOne: No results to fetch!"};
-		return;
+func (self *sqliteStatement) sqlSql() string {
+	cp := C.sqlite3_sql(self.handle);
+	if cp == nil {
+		// The call shouldn't fail unless we forgot to
+		// use sqlite3_prepare_v2()...
+		sqlPanic("can't get SQL statement");
 	}
-
-	// assemble results from current row
-	nColumns := int(C.sqlite3_column_count(self.statement.handle));
-	if nColumns <= 0 {
-		error = &DriverError{"FetchOne: No columns in result!"};
-		return;
-	}
-	data = make([]interface{}, nColumns);
-	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.statement.handle, C.int(i));
-		data[i] = C.GoString(text);
-	}
-
-	// try to get another row
-	rc := C.sqlite3_step(self.statement.handle);
-
-	if rc != StatusDone && rc != StatusRow {
-		// presumably any other outcome is an error
-		error = self.connection.error()
-	}
-
-	if rc == StatusDone {
-		self.result = false;
-		// clean up when done
-		self.statement.clear();
-	}
-
-	return;
+	return C.GoString(cp);
 }
 
-// Fetch at most count results. If we get no results at
-// all, an error will be returned; otherwise it probably
-// still occurred but will be hidden.
-func (self *Cursor) FetchMany(count int) (data [][]interface{}, error os.Error) {
-	d := make([][]interface{}, count);
-	l := 0;
-	var e os.Error;
-
-	// grab at most count results
-	for l < count {
-		d[l], e = self.FetchOne();
-		if e == nil {
-			l += 1
-		} else {
-			break
-		}
-	}
-
-	if l > 0 {
-		// there were results
-		if l < count {
-			// but fewer than expected, need fresh copy
-			data = make([][]interface{}, l);
-			for i := 0; i < l; i++ {
-				data[i] = d[i]
-			}
-		} else {
-			data = d
-		}
-	} else {
-		// no results at all, return the error
-		error = e
-	}
-
-	return;
+func (self *sqlStatement) sqlFinalize() int {
+	return int(C.sqlite3_finalize(self.handle));
 }
 
-func (self *Cursor) FetchAll() (data [][]interface{}, error os.Error) {
-	var v vector.Vector;
-	var d interface{}
-	var e os.Error;
-
-	// grab results until error
-	for {
-		d, e = self.FetchOne();
-		if e != nil {
-			break
-		}
-		v.Push(d);
-	}
-
-	l := v.Len();
-
-	if l > 0 {
-		// TODO: how can this be done better?
-		data = make([][]interface{}, l);
-		for i := 0; i < l; i++ {
-			data[i] = v.At(i).([]interface{})
-		}
-	} else {
-		// no results at all, return the error
-		error = e
-	}
-
-	return;
+func (self *sqlStatement) sqlReset() int {
+	return int(C.sqlite3_reset(self.handle));
 }
 
-func (self *Cursor) FetchRow() (data map[string]interface{}, error os.Error) {
-	if !self.result {
-		error = &DriverError{"FetchRow: No results to fetch!"};
-		return;
-	}
-
-	nColumns := int(C.sqlite3_column_count(self.statement.handle));
-	if nColumns <= 0 {
-		error = &DriverError{"FetchRow: No columns in result!"};
-		return;
-	}
-
-	data = make(map[string]interface{}, nColumns);
-	for i := 0; i < nColumns; i++ {
-		text := C.wsq_column_text(self.statement.handle, C.int(i));
-		name := C.wsq_column_name(self.statement.handle, C.int(i));
-		data[C.GoString(name)] = C.GoString(text);
-	}
-
-	// try to get another row
-	rc := C.sqlite3_step(self.statement.handle);
-
-	if rc != StatusDone && rc != StatusRow {
-		// presumably any other outcome is an error
-		error = self.connection.error()
-	}
-
-	if rc == StatusDone {
-		self.result = false;
-		// clean up when done
-		self.statement.clear();
-	}
-
-	return;
+func (self *sqlStatement) sqlClearBindings() int {
+	return int(C.sqlite3_clear_bindings(self.handle));
 }
 
-*/
+func (self *sqlStatement) sqlColumnCount() int {
+	return int(C.sqlite3_column_count(self.handle));
+}
+
+func (self *sqlStatement) sqlColumnType(col int) int {
+	return int(C.sqlite3_column_type(self.handle));
+}
+
+func (self *sqliteStatement) sqlColumnName(col int) string {
+	cp := C.wsq_column_name(self.handle, C.int(col));
+	if cp == nil {
+		// TODO: not sure at all when and how this can
+		// fail...
+		sqlPanic("can't get column name");
+	}
+	return C.GoString(cp);
+}
+
+func (self *sqliteStatement) sqlColumnText(col int) string {
+	cp := C.wsq_column_text(self.handle, C.int(col));
+	if cp == nil {
+		// TODO: not sure at all when and how this can
+		// fail...
+		sqlPanic("can't get column text");
+	}
+	return C.GoString(cp);
+}
