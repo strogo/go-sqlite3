@@ -38,6 +38,16 @@ int wsq_config(int option)
 import "C"
 import "unsafe"
 
+// The type codes returned by sqlite3_column_type().
+const (
+	_ = iota;
+	sqlIntegerType;
+	sqlFloatType;
+	sqlTextType;
+	sqlBlobType;
+	sqlNullType;
+)
+
 // If something goes wrong on this level, we simply bomb
 // out, there's no use trying to recover; note that most
 // calls to sqlPanic() are for things that can never,
@@ -270,5 +280,13 @@ func (self *sqlStatement) sqlColumnText(col int) string {
 //	if cp == nil {
 //		sqlPanic("can't get column text");
 //	}
+	return C.GoString(cp);
+}
+
+func (self *sqlStatement) sqlColumnDeclaredType(col int) string {
+	cp := C.sqlite3_column_decltype(self.handle, C.int(col));
+	// This can return nil, for example if the column is an
+	// SQL expression and not a "real" column in a table. So
+	// again no sanity checks...
 	return C.GoString(cp);
 }
