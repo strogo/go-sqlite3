@@ -29,12 +29,15 @@
 // now we simply force SQLite into "serialized" threading mode
 // (see http://www.sqlite.org/threadsafe.html for details).
 //
-// TODO: For now cgo cannot grok several .go files at once,
-// see http://code.google.com/p/go/issues/detail?id=342 for
-// details. We have to refactor core.go into two layers, a
-// cgo-layer low.go that provides a very basic internal API
-// for SQLite, and several go-level files that provide what
-// is currently in core.go; it'll take time. :-/
+//
+// Low-Level API:
+//
+// The file low.go contains the low-level API for SQLite. The
+// API is not exposed, and you should only have to worry about
+// it if you're hunting for bugs in the database driver. Note
+// that the technical reason for the low-level API is that cgo
+// can't process multiple files at once (a factoid that really
+// doesn't have any bearing whatsoever on applications).
 package sqlite3
 
 import (
