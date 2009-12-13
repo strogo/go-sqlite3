@@ -98,12 +98,6 @@ const (
 // we'll retry for this long
 const defaultTimeoutMilliseconds = 16 * 1000
 
-// SQLite statements
-type Statement struct {
-	handle		*sqlStatement;
-	connection	*Connection;
-}
-
 // SQLite version information
 var Version db.VersionSignature
 // SQLite connection factory
@@ -242,31 +236,6 @@ func iterate(rset db.ClassicResultSet, channel chan<- db.Result) {
 	}
 	rset.Close();
 	close(channel);
-}
-
-func (self *Statement) String() string {
-	sql := self.handle.sqlSql();
-	return sql;
-}
-
-func (self *Statement) Close() (error os.Error) {
-	rc := self.handle.sqlFinalize();
-	if rc != StatusOk {
-		error = self.connection.error()
-	}
-	return;
-}
-
-func (self *Statement) clear() (error os.Error) {
-	rc := self.handle.sqlReset();
-	if rc == StatusOk {
-		rc := self.handle.sqlClearBindings();
-		if rc == StatusOk {
-			return
-		}
-	}
-	error = self.connection.error();
-	return;
 }
 
 /*
