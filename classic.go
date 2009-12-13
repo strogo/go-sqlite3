@@ -8,6 +8,9 @@ package sqlite3
 // the nicer, more Go-like channel-based stuff. Officially
 // the "classic" API is optional, but we really need it. :-D
 
+// TODO: If someone Close()s the statement under us, we'll
+// have to handle that. :-/
+
 import (
 	"db";
 	"os";
@@ -143,4 +146,30 @@ func (self *ClassicResultSet) Fetch() (result db.Result) {
 // TODO: reset statement here as well, just like in Fetch
 func (self *ClassicResultSet) Close() os.Error {
 	return nil;
+}
+
+// TODO
+// TODO: what if something goes wrong? error? :-/
+func (self *ClassicResultSet) Names() (names []string) {
+	cols := self.statement.handle.sqlColumnCount();
+	if cols == 0 {
+		return;
+	}
+	names = make([]string, cols);
+	for i := 0; i < cols; i++ {
+		names[i] = self.statement.handle.sqlColumnName(i);
+	}
+	return;
+}
+
+func (self *ClassicResultSet) Types() (names []string) {
+	cols := self.statement.handle.sqlColumnCount();
+	if cols == 0 {
+		return;
+	}
+	names = make([]string, cols);
+	for i := 0; i < cols; i++ {
+		names[i] = self.statement.handle.sqlColumnDeclaredType(i);
+	}
+	return;
 }
