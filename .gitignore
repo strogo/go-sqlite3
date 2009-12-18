@@ -3,6 +3,7 @@
 *.o
 *.so
 *.cgo?.*
+_cgo_*
 _obj
 _test
 6.out
